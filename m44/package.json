@@ -1,0 +1,25 @@
+{
+  "name": "repo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "cartas": "node scripts/lista-cartas.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@netlify/functions": "^6.0.3",
+    "drizzle-kit": "^1.0.0-beta.22",
+    "sharp": "^0.34.5"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.5",
+    "@netlify/database": "^2.0.1",
+    "@netlify/identity": "^2.0.0",
+    "drizzle-orm": "^1.0.0-beta.22"
+  }
+}
