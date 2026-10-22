@@ -1,0 +1,3 @@
+[build]
+  # Lista as imagens de assets/cartas/ para o carrossel da página inicial
+  command = "npm run cartas"

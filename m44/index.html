@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M44 TCG — Compre, venda e troque cartas Pokémon</title>
+<meta name="description" content="Loja M44 TCG: singles, booster boxes e acessórios Pokémon TCG com preços comparados ao mercado, coleção e sistema de trocas.">
+<meta name="theme-color" content="#0a1126">
+<meta property="og:title" content="M44 TCG — Compre, venda e troque cartas raras">
+<meta property="og:description" content="Pokémon TCG com preços sincronizados com a LigaPokémon.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="M44 TCG">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Outfit:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={darkMode:'class'}</script>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="min-h-screen">
+<header class="site-head">
+  <div class="site-head__bar">
+    <a class="brand" href="./" aria-label="M44 TCG — início"><img class="brand__logo brand__logo--light" src="assets/logo.png" alt=""><img class="brand__logo brand__logo--dark" src="assets/logo-branca.png" alt=""></a>
+    <img id="logo" src="assets/logo.png" alt="" hidden>
+    <nav class="site-nav" role="tablist" aria-label="Seções">
+      <button data-tab="store" role="tab" class="tab">Loja</button>
+      <button data-tab="trades" role="tab" class="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>Trocas</button>
+      <button data-tab="all" role="tab" class="tab">Minha Coleção</button>
+    </nav>
+    <div class="site-actions">
+      <button id="btn-theme" class="icon-btn" aria-label="Alternar tema">🌓</button>
+      <button id="btn-cart" class="icon-btn" aria-label="Abrir carrinho"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11L21 7H6"/></svg><span id="cart-badge" style="display:none">0</span></button>
+      <div id="user-area"></div>
+    </div>
+  </div>
+  <div class="searchbar"><input id="hq" type="search" autocomplete="off" aria-label="Pesquisar produtos e cartas" placeholder="Pesquisar produtos e cartas…"></div>
+</header>
+
+<a href="#gens" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-slate-900 focus:px-3 focus:py-2 focus:rounded-lg">Pular para o conteúdo</a>
+<main id="main" class="max-w-6xl mx-auto px-4 py-5">
+  <section id="progress" class="mb-5">
+    <div class="flex items-end justify-between gap-4 mb-2">
+      <p class="text-sm text-slate-600 dark:text-slate-400">Você tem <strong id="total-have" class="text-slate-900 dark:text-white">0</strong> de <span id="total-all">0</span> itens</p>
+      <span id="total-pct" class="text-2xl font-extrabold text-[#004de9]">0%</span>
+    </div>
+    <div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"><div id="total-bar" class="h-full bg-[#004de9] transition-all" style="width:0%"></div></div>
+  </section>
+
+  <section id="toolbar" class="flex flex-wrap gap-2 mb-5">
+    <input id="q" type="search" placeholder="Buscar expansão pelo nome" class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004de9]">
+    <select id="status-sel" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
+      <option value="all">Todas as cartas</option><option value="have">Só as que tenho</option><option value="miss">Só as que faltam</option>
+    </select>
+    <select id="gen-sel" aria-label="Filtrar por expansão" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"><option value="all">Todas as expansões</option></select>
+    <button id="btn-export" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-white dark:hover:bg-slate-800">Exportar backup</button>
+    <button id="btn-import" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-white dark:hover:bg-slate-800">Importar</button>
+    <input id="file" type="file" accept="application/json" class="hidden">
+  </section>
+
+  <div id="gens" class="space-y-4"></div>
+  <div id="store" class="hidden"></div>
+  <div id="search" class="hidden"></div>
+  <div id="trades" class="hidden"></div>
+</main>
+
+<div id="admin-modal" class="fixed inset-0 z-50 hidden items-start justify-center bg-slate-950/70 p-3 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Editar loja"><section class="w-full max-w-3xl my-4 rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-6"><div id="admin-body"></div></section></div>
+<div id="cart-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-label="Carrinho de compras">
+  <div data-cact="close" class="absolute inset-0 bg-slate-950/70"></div>
+  <aside class="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl flex flex-col">
+    <div class="flex items-center gap-2 p-4 border-b border-slate-200 dark:border-slate-800"><h2 class="text-lg font-extrabold">Carrinho <span id="cart-count" class="text-sm font-normal text-slate-500"></span></h2><button data-cact="close" class="ml-auto h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 font-bold" aria-label="Fechar carrinho">✕</button></div>
+    <div id="cart-body" class="flex-1 overflow-y-auto p-4"></div>
+    <div id="cart-foot" class="p-4 border-t border-slate-200 dark:border-slate-800"></div>
+  </aside>
+</div>
+<div id="prod-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 p-3" role="dialog" aria-modal="true" aria-label="Detalhes do produto"><section class="relative w-full max-w-3xl max-h-[94vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-6"><button data-pact="close" class="absolute top-3 right-3 z-10 h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 font-bold" aria-label="Fechar">✕</button><div id="prod-body"></div></section></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="set-cards-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="set-cards-title">
+  <section class="w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-2xl flex flex-col">
+    <header class="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 p-4 sm:p-5">
+      <div class="min-w-0"><h2 id="set-cards-title" class="text-lg sm:text-xl font-extrabold truncate">Cartas da expansão</h2><p id="set-cards-subtitle" class="text-sm text-slate-500 dark:text-slate-400">Carregando cartas...</p></div>
+      <button id="set-cards-close" type="button" class="ml-auto rounded-lg px-3 py-2 bg-slate-100 dark:bg-slate-800 font-bold" aria-label="Fechar">✕</button>
+    </header>
+    <div id="set-cards-content" class="overflow-y-auto p-4 sm:p-5"><div class="py-12 text-center text-slate-500">Carregando cartas da expansão...</div></div>
+  </section>
+</div>
+
+<script src="js/m44-db.js"></script>
+<script src="js/db-bootstrap.js"></script>
+<script src="assets/cartas/lista.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
