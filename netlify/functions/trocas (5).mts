@@ -6,11 +6,13 @@ import { conversations, tradeOffers } from '../../db/schema.js'
 
 // Anúncios de troca compartilhados: todos veem, só usuários logados publicam e só o dono edita ou remove.
 const MAX_POR_USUARIO = 50
-const CONDICOES = ['NM', 'SP', 'MP', 'HP', 'D'] as const // Near Mint, Slightly Played, Moderately Played, Heavily Played, Damaged
+// Near Mint, Slightly Played, Moderately Played, Heavily Played, Damaged.
+// A condição fica guardada dentro de give_card (jsonb), então o banco não precisa de coluna nova.
+const CONDICOES = ['NM', 'SP', 'MP', 'HP', 'D']
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 const cleanCondition = (v: unknown) => {
   const c = str(v, 4).toUpperCase()
-  return (CONDICOES as readonly string[]).includes(c) ? c : null
+  return CONDICOES.includes(c) ? c : null
 }
 
 function cleanCard(c: any) {
@@ -23,22 +25,19 @@ function cleanCard(c: any) {
   return card
 }
 
-const toJson = (r: typeof tradeOffers.$inferSelect, userId?: string) => ({
-  id: String(r.id), ownerName: r.ownerName, mine: !!userId && r.ownerId === userId,
-  give: r.giveId, giveCard: r.giveCard, want: r.wantId, wantCard: r.wantCard,
-  condition: r.condition, createdAt: r.createdAt,
-})
-
-// Cria a coluna "condition" no primeiro acesso após o deploy (idempotente: se já existir, não faz nada).
-// Dispensa rodar o drizzle-kit à mão. Se você passar a usar migrações do drizzle, pode remover isto.
-let colunaPronta: Promise<unknown> | null = null
-const garantirColuna = () => (colunaPronta ??= db.execute(sql`ALTER TABLE "trade_offers" ADD COLUMN IF NOT EXISTS "condition" text`)
-  .catch(e => { colunaPronta = null; throw e }))
+// Separa a carta da condição (que está guardada junto dela no banco).
+const toJson = (r: typeof tradeOffers.$inferSelect, userId?: string) => {
+  const { condition, ...giveCard } = (r.giveCard || {}) as any
+  return {
+    id: String(r.id), ownerName: r.ownerName, mine: !!userId && r.ownerId === userId,
+    give: r.giveId, giveCard, want: r.wantId, wantCard: r.wantCard,
+    condition: cleanCondition(condition), createdAt: r.createdAt,
+  }
+}
 
 // Qualquer falha volta como JSON com o motivo real (o drizzle esconde a causa na propriedade "cause").
 export default async (req: Request) => {
   try {
-    await garantirColuna()
     return await tratar(req)
   } catch (e: any) {
     const detalhe = String(e?.cause?.message || e?.message || e)
@@ -72,7 +71,7 @@ async function tratar(req: Request): Promise<Response> {
     const [row] = await db.insert(tradeOffers).values({
       ownerId: user.id, ownerEmail: email,
       ownerName: str(user.name, 80) || email.split('@')[0] || 'Treinador',
-      giveId: give.id, giveCard: give, condition,
+      giveId: give.id, giveCard: { ...give, condition },
     }).returning()
     return Response.json({ offer: toJson(row, user.id) }, { status: 201 })
   }
@@ -83,38 +82,41 @@ async function tratar(req: Request): Promise<Response> {
     if (!Number.isInteger(id)) return Response.json({ error: 'Anúncio inválido.' }, { status: 400 })
     const body = await req.json().catch(() => null)
     if (!body || typeof body !== 'object') return Response.json({ error: 'Dados inválidos.' }, { status: 400 })
+    if (!('condition' in body) && !body.giveCard) return Response.json({ error: 'Nada para atualizar.' }, { status: 400 })
 
     const [atual] = await db.select().from(tradeOffers)
       .where(and(eq(tradeOffers.id, id), eq(tradeOffers.ownerId, user.id))).limit(1)
     if (!atual) return Response.json({ error: 'Anúncio não encontrado.' }, { status: 404 })
 
-    const set: Partial<typeof tradeOffers.$inferInsert> = {}
-    let novaCarta: ReturnType<typeof cleanCard> = null
-
+    const guardada: any = atual.giveCard || {}
+    let condition = cleanCondition(guardada.condition)
     if ('condition' in body) {
-      const condition = cleanCondition(body.condition)
+      condition = cleanCondition(body.condition)
       if (!condition) return Response.json({ error: 'Condição inválida. Use NM, SP, MP, HP ou D.' }, { status: 400 })
-      set.condition = condition
     }
-    if (body.giveCard) {
-      novaCarta = cleanCard(body.giveCard)
-      if (!novaCarta) return Response.json({ error: 'Carta inválida.' }, { status: 400 })
-      if (novaCarta.id !== atual.giveId) {
-        const dup = await db.select({ id: tradeOffers.id }).from(tradeOffers)
-          .where(and(eq(tradeOffers.ownerId, user.id), eq(tradeOffers.giveId, novaCarta.id), ne(tradeOffers.id, id))).limit(1)
-        if (dup.length) return Response.json({ error: 'Essa carta já está anunciada.' }, { status: 409 })
-        set.giveId = novaCarta.id
-        set.giveCard = novaCarta
-      } else novaCarta = null
-    }
-    if (!Object.keys(set).length) return Response.json({ error: 'Nada para atualizar.' }, { status: 400 })
 
-    const [row] = await db.update(tradeOffers).set(set)
+    let carta = cleanCard(guardada)
+    let trocouCarta = false
+    if (body.giveCard) {
+      const nova = cleanCard(body.giveCard)
+      if (!nova) return Response.json({ error: 'Carta inválida.' }, { status: 400 })
+      if (nova.id !== atual.giveId) {
+        const dup = await db.select({ id: tradeOffers.id }).from(tradeOffers)
+          .where(and(eq(tradeOffers.ownerId, user.id), eq(tradeOffers.giveId, nova.id), ne(tradeOffers.id, id))).limit(1)
+        if (dup.length) return Response.json({ error: 'Essa carta já está anunciada.' }, { status: 409 })
+        trocouCarta = true
+      }
+      carta = nova
+    }
+    if (!carta) return Response.json({ error: 'Carta inválida.' }, { status: 400 })
+
+    const [row] = await db.update(tradeOffers)
+      .set({ giveId: carta.id, giveCard: { ...carta, ...(condition ? { condition } : {}) } })
       .where(and(eq(tradeOffers.id, id), eq(tradeOffers.ownerId, user.id))).returning()
     // Mantém as conversas já abertas coerentes com a carta anunciada.
-    if (novaCarta) {
+    if (trocouCarta) {
       await db.update(conversations)
-        .set({ cardName: str(novaCarta.name, 120) || 'Carta', cardImage: str(novaCarta.image, 500) })
+        .set({ cardName: str(carta.name, 120) || 'Carta', cardImage: str(carta.image, 500) })
         .where(eq(conversations.offerId, id))
     }
     return Response.json({ offer: toJson(row, user.id) })

@@ -10,8 +10,6 @@ export const tradeOffers = pgTable("trade_offers", {
   giveCard: jsonb("give_card").notNull(),
   wantId: text("want_id"),
   wantCard: jsonb("want_card"),
-  // Condição da carta: NM, SP, MP, HP ou D. Anúncios antigos ficam com null.
-  condition: text("condition"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, t => [index("trade_offers_owner_idx").on(t.ownerId)]);
 
