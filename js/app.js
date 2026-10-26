@@ -929,7 +929,7 @@ LS.set('pk-market', null);
 const fromServer = o => {
   if (o.giveCard?.id) tcgCardCache[o.giveCard.id] ||= o.giveCard;
   if (o.wantCard?.id) tcgCardCache[o.wantCard.id] ||= o.wantCard;
-  return { id: o.id, owner: o.mine && user ? user.email : 'outro:' + o.id, ownerName: o.ownerName, give: o.give, want: o.want || null };
+  return { id: o.id, owner: o.mine && user ? user.email : 'outro:' + o.id, ownerName: o.ownerName, give: o.give, want: o.want || null, condition: o.condition || null };
 };
 async function loadMarket() {
   try {
@@ -952,8 +952,17 @@ async function apiTrocas(method, opts = {}) {
   return j;
 }
 const pick = { give: null, want: null };
+// Condição da carta (padrão TCG) e estado do formulário de anúncio (cond = escolhida, editing = id do anúncio em edição).
+const COND = {
+  NM: { label: 'Near Mint', hint: 'praticamente nova', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' },
+  SP: { label: 'Slightly Played', hint: 'leve desgaste', cls: 'bg-lime-100 text-lime-800 dark:bg-lime-500/20 dark:text-lime-300' },
+  MP: { label: 'Moderately Played', hint: 'desgaste moderado', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300' },
+  HP: { label: 'Heavily Played', hint: 'muito desgastada', cls: 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300' },
+  D: { label: 'Damaged', hint: 'danificada', cls: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' },
+};
+const form = { cond: '', editing: null };
 const saveMarket = () => {};
-const lockedIds = () => new Set(user ? market.filter(o => o.owner === user.email).map(o => o.give) : []);
+const lockedIds = () => new Set(user ? market.filter(o => o.owner === user.email && o.id !== form.editing).map(o => o.give) : []);
 // Catálogo TCG completo: metadados (código, nome, expansão e URL da imagem) persistidos em IndexedDB.
 // As imagens são mostradas pela URL oficial do catálogo para evitar um HTML gigante.
 const tcgCardCache = LS.get('pk-tcg-card-cache-v1', {});
@@ -1261,6 +1270,11 @@ function scanBlock() {
 
 const chip = c => `<div class="text-center w-24"><img src="${c.image}" alt="${esc(c.name)}" loading="lazy" class="w-20 h-20 mx-auto object-contain"><span class="block text-xs text-slate-500 dark:text-slate-400">${c.number}</span><span class="block text-sm font-semibold truncate">${esc(c.name)}</span>${priceLine(c.id)}</div>`;
 const btnCls = 'px-3 py-1.5 rounded-lg text-sm font-semibold';
+const condBadge = k => COND[k] ? `<span title="${COND[k].label} (${COND[k].hint})" class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${COND[k].cls}">${k}</span>` : '';
+const condPicker = () => `<div class="mt-4">
+  <p id="cond-label" class="text-sm font-semibold mb-1">Condição da carta</p>
+  <div role="radiogroup" aria-labelledby="cond-label" class="flex flex-wrap gap-2">${Object.entries(COND).map(([k, c]) => `<button type="button" role="radio" aria-checked="${form.cond === k}" data-cond="${k}" title="${c.label} (${c.hint})" class="px-3 py-1.5 rounded-lg text-sm font-bold border ${form.cond === k ? 'border-[#004de9] bg-[#004de9] text-white' : 'border-slate-300 dark:border-slate-700 hover:border-[#004de9]'}">${k}</button>`).join('')}</div>
+  <p class="text-xs text-slate-500 mt-1">${form.cond ? `<strong>${form.cond}</strong> · ${COND[form.cond].label} (${COND[form.cond].hint})` : 'NM = Near Mint · SP = Slightly Played · MP = Moderately Played · HP = Heavily Played · D = Damaged'}</p></div>`;
 function pickRes(key, term) {
   const locked = lockedIds(), t = term.trim().toLowerCase();
   const list = [...allTcgCards, ...Object.values(tcgCardCache)]
@@ -1292,14 +1306,14 @@ function renderTrades() {
     const chatBtn = mine ? '' : `<button data-chat="${o.id}" class="${btnCls} bg-[#004de9] text-white">💬 Conversar</button>`;
     const w = single ? null : cardOf(o.want);
     let act;
-    if (mine) act = `<button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover anúncio</button>`;
+    if (mine) act = `<button data-edit="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">✏️ Editar</button><button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover anúncio</button>`;
     else if (single) act = '<span class="text-xs text-slate-500">Carta anunciada para troca</span>';
     else {
       const why = !col.has(o.want) ? `Você precisa ter ${w.name}` : col.has(o.give) ? `Você já tem ${g.name}` : locked.has(o.want) ? 'Sua carta está em outra oferta' : '';
       act = why ? `<span class="text-xs text-slate-500">${esc(why)}</span>` : `<button data-accept="${o.id}" class="${btnCls} bg-[#004de9] text-white">Aceitar troca</button>`;
     }
     return `<div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto flex flex-wrap items-center justify-end gap-2 text-right">${chatBtn}${act}</div></div>`;
+      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span><div class="flex flex-col items-center gap-1">${chip(g)}${condBadge(o.condition)}</div>${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto flex flex-wrap items-center justify-end gap-2 text-right">${chatBtn}${act}</div></div>`;
   };
   const ordered = [...market.filter(o => o.owner !== user.email), ...market.filter(o => o.owner === user.email)];
   const hist = LS.get('pk-trades-' + user.email, []).slice(0, 5);
@@ -1320,10 +1334,11 @@ function renderTrades() {
       <div class="mt-3">${scanBlock()}</div>
     </section>
     <section class="mb-6 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-      <h2 class="font-bold mb-1">Anunciar carta para troca</h2>
-      <p class="text-xs text-slate-500 mb-3">Informe o código ou o nome da carta que você quer oferecer e publique. Não é preciso que ela esteja na sua coleção.</p>
+      <h2 id="trade-form" class="font-bold mb-1">${form.editing ? 'Editar anúncio' : 'Anunciar carta para troca'}</h2>
+      <p class="text-xs text-slate-500 mb-3">${form.editing ? 'Troque a carta ou a condição e salve as alterações.' : 'Informe o código ou o nome da carta que você quer oferecer e publique. Não é preciso que ela esteja na sua coleção.'}</p>
       <div class="flex flex-wrap gap-5">${picker('give', 'Carta que quero trocar')}</div>
-      <button id="btn-pub" class="${btnCls} mt-4 bg-[#004de9] text-white disabled:opacity-40" ${pick.give ? '' : 'disabled'}>Publicar carta</button>
+      ${condPicker()}
+      <div class="flex flex-wrap gap-2 mt-4"><button id="btn-pub" class="${btnCls} bg-[#004de9] text-white disabled:opacity-40" ${pick.give && form.cond ? '' : 'disabled'}>${form.editing ? 'Salvar alterações' : 'Publicar carta'}</button>${form.editing ? `<button type="button" data-edit-cancel class="${btnCls} border border-slate-300 dark:border-slate-700">Cancelar edição</button>` : ''}</div>
     </section>
     <section class="mb-6">
       <div class="flex items-center justify-between mb-2"><h2 class="font-bold">Ofertas abertas</h2></div>
@@ -1399,22 +1414,41 @@ $('#trades').addEventListener('click', async e => {
     else if (a === 'give' && !lockedIds().has(id)) pick.give = id;
     renderTrades();
   }
+  else if (t.dataset.cond) { form.cond = t.dataset.cond; renderTrades(); }
+  else if (t.dataset.edit) {
+    const o = market.find(x => x.id === t.dataset.edit);
+    if (!o) return;
+    form.editing = o.id; form.cond = o.condition || ''; pick.give = o.give; renderTrades();
+    document.getElementById('trade-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!o.condition) toast('Esse anúncio ainda não tem condição. Selecione uma e salve.');
+  }
+  else if (t.hasAttribute('data-edit-cancel')) { form.editing = null; form.cond = ''; pick.give = null; renderTrades(); }
   else if (t.dataset.chat) window.M44Chat?.open(t.dataset.chat);
   else if (t.dataset.accept) accept(t.dataset.accept);
   else if (t.dataset.cancel) {
     t.disabled = true;
-    try { await apiTrocas('DELETE', { q: '?id=' + encodeURIComponent(t.dataset.cancel) }); market = market.filter(o => o.id !== t.dataset.cancel); toast('Anúncio removido.'); }
+    try { await apiTrocas('DELETE', { q: '?id=' + encodeURIComponent(t.dataset.cancel) }); market = market.filter(o => o.id !== t.dataset.cancel); if (form.editing === t.dataset.cancel) { form.editing = null; form.cond = ''; pick.give = null; } toast('Anúncio removido.'); }
     catch (err) { toast(err.message); }
     renderTrades(); loadMarket();
   }
   else if (t.id === 'btn-pub' && pick.give) {
+    if (!COND[form.cond]) { toast('Selecione a condição da carta.'); return; }
     if (lockedIds().has(pick.give)) { toast('Essa carta já está anunciada.'); return; }
     const giveCard = cardOf(pick.give);
     if (!giveCard) { toast('Carta não encontrada. Selecione novamente pelo código.'); return; }
-    t.disabled = true; t.textContent = 'Publicando...';
+    const editing = form.editing;
+    t.disabled = true; t.textContent = editing ? 'Salvando...' : 'Publicando...';
     try {
-      const { offer } = await apiTrocas('POST', { body: { giveCard } });
-      market.unshift(fromServer(offer)); pick.give = null; toast('Carta publicada! Todos já podem ver na aba Trocas.');
+      if (editing) {
+        const { offer } = await apiTrocas('PATCH', { q: '?id=' + encodeURIComponent(editing), body: { giveCard, condition: form.cond } });
+        const upd = fromServer(offer), i = market.findIndex(o => o.id === editing);
+        if (i >= 0) market[i] = upd; else market.unshift(upd);
+        toast('Anúncio atualizado.');
+      } else {
+        const { offer } = await apiTrocas('POST', { body: { giveCard, condition: form.cond } });
+        market.unshift(fromServer(offer)); toast('Carta publicada! Todos já podem ver na aba Trocas.');
+      }
+      pick.give = null; form.cond = ''; form.editing = null;
     } catch (err) { toast(err.message); }
     renderTrades(); loadMarket();
   }
