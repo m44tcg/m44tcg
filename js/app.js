@@ -961,6 +961,24 @@ const COND = {
   D: { label: 'Damaged', hint: 'danificada', cls: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' },
 };
 const form = { cond: '', editing: null };
+// Ordenação das ofertas. Preço = valor Liga informado neste navegador; sem preço vai para o fim da lista.
+const nomeDe = o => String(cardOf(o.give)?.name || '');
+const precoDe = o => priceOf(o.give);
+const cmpNome = (lang, dir) => (a, b) => nomeDe(a).localeCompare(nomeDe(b), lang, { sensitivity: 'base' }) * dir;
+const cmpPreco = dir => (a, b) => { const x = precoDe(a), y = precoDe(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (x - y) * dir; };
+const TRADE_SORTS = {
+  recent: { label: 'Mais recentes', fn: null },
+  'pt-az': { label: 'Nome Português [A-Z]', fn: cmpNome('pt-BR', 1) },
+  'pt-za': { label: 'Nome Português [Z-A]', fn: cmpNome('pt-BR', -1) },
+  'en-az': { label: 'Nome Inglês [A-Z]', fn: cmpNome('en', 1) },
+  'en-za': { label: 'Nome Inglês [Z-A]', fn: cmpNome('en', -1) },
+  'price-asc': { label: 'Preço [0-9]', fn: cmpPreco(1) },
+  'price-desc': { label: 'Preço [9-0]', fn: cmpPreco(-1) },
+};
+let tradeSort = LS.get('pk-trade-sort', 'recent');
+if (!TRADE_SORTS[tradeSort]) tradeSort = 'recent';
+let tradeView = LS.get('pk-trade-view', 'list'); // 'list' (linhas) ou 'grid' (cartões em grade)
+if (tradeView !== 'grid') tradeView = 'list';
 const saveMarket = () => {};
 const lockedIds = () => new Set(user ? market.filter(o => o.owner === user.email && o.id !== form.editing).map(o => o.give) : []);
 // Catálogo TCG completo: metadados (código, nome, expansão e URL da imagem) persistidos em IndexedDB.
@@ -1312,10 +1330,17 @@ function renderTrades() {
       const why = !col.has(o.want) ? `Você precisa ter ${w.name}` : col.has(o.give) ? `Você já tem ${g.name}` : locked.has(o.want) ? 'Sua carta está em outra oferta' : '';
       act = why ? `<span class="text-xs text-slate-500">${esc(why)}</span>` : `<button data-accept="${o.id}" class="${btnCls} bg-[#004de9] text-white">Aceitar troca</button>`;
     }
+    if (tradeView === 'grid') return `<div class="flex flex-col gap-2 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+      <div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${condBadge(o.condition)}</div>
+      <img src="${esc(g.image)}" alt="${esc(g.name)}" loading="lazy" class="h-44 mx-auto object-contain">
+      <div class="text-center"><p class="text-sm font-semibold truncate">${esc(g.name)}</p><p class="text-xs text-slate-500">${esc(g.number)}</p>${priceLine(g.id)}</div>
+      ${single ? '<p class="text-xs text-slate-500 text-center">Quer trocar esta carta</p>' : `<div class="flex items-center justify-center gap-2"><span class="text-xl text-slate-400">⇄</span>${chip(w)}</div>${balance(o, mine)}`}
+      <div class="mt-auto flex flex-wrap items-center justify-end gap-2">${chatBtn}${act}</div></div>`;
     return `<div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
       <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span><div class="flex flex-col items-center gap-1">${chip(g)}${condBadge(o.condition)}</div>${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto flex flex-wrap items-center justify-end gap-2 text-right">${chatBtn}${act}</div></div>`;
   };
-  const ordered = [...market.filter(o => o.owner !== user.email), ...market.filter(o => o.owner === user.email)];
+  const sortFn = TRADE_SORTS[tradeSort].fn;
+  const ordered = sortFn ? [...market].sort(sortFn) : [...market.filter(o => o.owner !== user.email), ...market.filter(o => o.owner === user.email)];
   const hist = LS.get('pk-trades-' + user.email, []).slice(0, 5);
   el.innerHTML = `
     <section class="mb-6 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
@@ -1341,9 +1366,12 @@ function renderTrades() {
       <div class="flex flex-wrap gap-2 mt-4"><button id="btn-pub" class="${btnCls} bg-[#004de9] text-white disabled:opacity-40" ${pick.give && form.cond ? '' : 'disabled'}>${form.editing ? 'Salvar alterações' : 'Publicar carta'}</button>${form.editing ? `<button type="button" data-edit-cancel class="${btnCls} border border-slate-300 dark:border-slate-700">Cancelar edição</button>` : ''}</div>
     </section>
     <section class="mb-6">
-      <div class="flex items-center justify-between mb-2"><h2 class="font-bold">Ofertas abertas</h2></div>
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold">Ofertas abertas</h2>
+        <label class="flex items-center gap-2 text-sm"><span class="text-slate-500">Ordenar por</span>
+          <select id="trade-sort" aria-label="Ordenar ofertas" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">${Object.entries(TRADE_SORTS).map(([k, o]) => `<option value="${k}"${k === tradeSort ? ' selected' : ''}>${o.label}</option>`).join('')}</select></label>
+        <div class="flex gap-1" role="group" aria-label="Modo de exibição">${[['list', 'Lista', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'], ['grid', 'Grade', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>']].map(([k, n, ic]) => `<button type="button" data-view="${k}" aria-pressed="${tradeView === k}" title="${n}" aria-label="${n}" class="h-9 w-9 rounded-full grid place-items-center ${tradeView === k ? 'bg-red-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200'}">${ic}</button>`).join('')}</div></div>
       <p class="text-xs text-slate-500 mb-3">Veja as cartas anunciadas pelos treinadores. Anúncios com uma única carta indicam o que a pessoa quer trocar.</p>
-      <div class="space-y-3">${ordered.map(offer).join('') || '<p class="text-slate-500 py-6 text-center">Nenhuma oferta aberta. Publique a primeira.</p>'}</div>
+      <div class="${tradeView === 'grid' ? 'grid gap-3 grid-cols-[repeat(auto-fill,minmax(230px,1fr))]' : 'space-y-3'}">${ordered.map(offer).join('') || '<p class="col-span-full text-slate-500 py-6 text-center">Nenhuma oferta aberta. Publique a primeira.</p>'}</div>
     </section>
     <section><h2 class="font-bold mb-2">Minhas trocas recentes</h2>
       ${hist.length ? hist.map(h => `<p class="text-sm text-slate-600 dark:text-slate-400">Você deu ${esc(cardOf(h.give).name)} e recebeu ${esc(cardOf(h.get).name)} de ${esc(h.with)}.</p>`).join('') : '<p class="text-sm text-slate-500">Nenhuma troca concluída.</p>'}
@@ -1414,6 +1442,7 @@ $('#trades').addEventListener('click', async e => {
     else if (a === 'give' && !lockedIds().has(id)) pick.give = id;
     renderTrades();
   }
+  else if (t.dataset.view) { tradeView = t.dataset.view === 'grid' ? 'grid' : 'list'; LS.set('pk-trade-view', tradeView); renderTrades(); }
   else if (t.dataset.cond) { form.cond = t.dataset.cond; renderTrades(); }
   else if (t.dataset.edit) {
     const o = market.find(x => x.id === t.dataset.edit);
@@ -1455,6 +1484,7 @@ $('#trades').addEventListener('click', async e => {
 });
 $('#trades').addEventListener('change', e => {
   if (e.target.id === 'scan-file' && e.target.files[0]) runScan(e.target.files[0]);
+  else if (e.target.id === 'trade-sort') { tradeSort = TRADE_SORTS[e.target.value] ? e.target.value : 'recent'; LS.set('pk-trade-sort', tradeSort); renderTrades(); }
   else if (e.target.dataset.price) { setPrice(e.target.dataset.price, e.target.value); renderTrades(); }
 });
 $('#trades').addEventListener('input', e => {
