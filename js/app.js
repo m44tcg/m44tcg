@@ -296,13 +296,15 @@ function render() {
     b.setAttribute('aria-selected', on);
     b.classList.toggle('is-active', on);
   });
-  const trades = tab === 'trades', store = tab === 'store', srch = tab === 'search';
+  const trades = tab === 'trades', store = tab === 'store', srch = tab === 'search', chat = tab === 'chat';
   $('#store').classList.toggle('hidden', !store);
   $('#trades').classList.toggle('hidden', !trades);
   $('#search').classList.toggle('hidden', !srch);
-  $('#gens').classList.toggle('hidden', trades || store || srch);
-  $('#toolbar').classList.toggle('hidden', trades || store || srch);
-  $('#progress').classList.toggle('hidden', store || srch);
+  $('#chat').classList.toggle('hidden', !chat);
+  $('#gens').classList.toggle('hidden', trades || store || srch || chat);
+  $('#toolbar').classList.toggle('hidden', trades || store || srch || chat);
+  $('#progress').classList.toggle('hidden', store || srch || chat);
+  if (chat) return window.M44Chat?.render();
   if (store) return renderStore();
   if (srch) return renderSearch();
   if (trades) { loadMarket(); $('#progress p').innerHTML = `Você tem <strong id="total-have" class="text-slate-900 dark:text-white">0</strong> de <span id="total-all">0</span> cartas`; renderTrades(); return stats(); }
@@ -1287,6 +1289,7 @@ function renderTrades() {
   const offer = o => {
     const g = cardOf(o.give), mine = o.owner === user.email;
     const single = !o.want;
+    const chatBtn = mine ? '' : `<button data-chat="${o.id}" class="${btnCls} bg-[#004de9] text-white">💬 Conversar</button>`;
     const w = single ? null : cardOf(o.want);
     let act;
     if (mine) act = `<button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover anúncio</button>`;
@@ -1296,7 +1299,7 @@ function renderTrades() {
       act = why ? `<span class="text-xs text-slate-500">${esc(why)}</span>` : `<button data-accept="${o.id}" class="${btnCls} bg-[#004de9] text-white">Aceitar troca</button>`;
     }
     return `<div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto text-right">${act}</div></div>`;
+      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto flex flex-wrap items-center justify-end gap-2 text-right">${chatBtn}${act}</div></div>`;
   };
   const ordered = [...market.filter(o => o.owner !== user.email), ...market.filter(o => o.owner === user.email)];
   const hist = LS.get('pk-trades-' + user.email, []).slice(0, 5);
@@ -1396,6 +1399,7 @@ $('#trades').addEventListener('click', async e => {
     else if (a === 'give' && !lockedIds().has(id)) pick.give = id;
     renderTrades();
   }
+  else if (t.dataset.chat) window.M44Chat?.open(t.dataset.chat);
   else if (t.dataset.accept) accept(t.dataset.accept);
   else if (t.dataset.cancel) {
     t.disabled = true;
@@ -1448,7 +1452,7 @@ $('#trades').addEventListener('input', e => {
 addEventListener('storage', e => { if (e.key && /^pk-(col|sets|expcards)-/.test(e.key)) { loadCol(); render(); } });
 loadCol();
 renderUser();
-initAuth().then(loadMarket);
+initAuth().then(() => { loadMarket(); window.M44Chat?.refresh(); });
 loadData();
 preloadAllTcgCards();
 loadSets();
