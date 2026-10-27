@@ -89,6 +89,8 @@ async function logoutUser() {
 }
 function renderUser() {
   applyStore();
+  const mt = document.querySelector('[data-tab="mine"]'); if (mt) mt.style.display = user ? '' : 'none';
+  if (!user && tab === 'mine') tab = 'store';
   const a = $('#user-area');
   if (user) {
     a.innerHTML = `<div class="flex items-center gap-2">
@@ -296,17 +298,17 @@ function render() {
     b.setAttribute('aria-selected', on);
     b.classList.toggle('is-active', on);
   });
-  const trades = tab === 'trades', store = tab === 'store', srch = tab === 'search', chat = tab === 'chat';
+  const trades = tab === 'trades', store = tab === 'store', srch = tab === 'search', mine = tab === 'mine';
   $('#store').classList.toggle('hidden', !store);
   $('#trades').classList.toggle('hidden', !trades);
   $('#search').classList.toggle('hidden', !srch);
-  $('#chat').classList.toggle('hidden', !chat);
-  $('#gens').classList.toggle('hidden', trades || store || srch || chat);
-  $('#toolbar').classList.toggle('hidden', trades || store || srch || chat);
-  $('#progress').classList.toggle('hidden', store || srch || chat);
-  if (chat) return window.M44Chat?.render();
+  $('#mine').classList.toggle('hidden', !mine);
+  $('#gens').classList.toggle('hidden', trades || store || srch || mine);
+  $('#toolbar').classList.toggle('hidden', trades || store || srch || mine);
+  $('#progress').classList.toggle('hidden', store || srch || mine);
   if (store) return renderStore();
   if (srch) return renderSearch();
+  if (mine) { loadMarket(); return renderMine(); }
   if (trades) { loadMarket(); $('#progress p').innerHTML = `Você tem <strong id="total-have" class="text-slate-900 dark:text-white">0</strong> de <span id="total-all">0</span> cartas`; renderTrades(); return stats(); }
   $('#progress p').innerHTML = `Você tem <strong id="total-have" class="text-slate-900 dark:text-white">0</strong> de <span id="total-all">0</span> expansões`;
   if (tab === 'all') { renderSets(); return; }
@@ -929,14 +931,14 @@ LS.set('pk-market', null);
 const fromServer = o => {
   if (o.giveCard?.id) tcgCardCache[o.giveCard.id] ||= o.giveCard;
   if (o.wantCard?.id) tcgCardCache[o.wantCard.id] ||= o.wantCard;
-  return { id: o.id, owner: o.mine && user ? user.email : 'outro:' + o.id, ownerName: o.ownerName, give: o.give, want: o.want || null, condition: o.condition || null };
+  return { id: o.id, owner: o.mine && user ? user.email : 'outro:' + o.id, ownerName: o.ownerName, give: o.give, want: o.want || null };
 };
 async function loadMarket() {
   try {
     const r = await fetch('/api/trocas', { credentials: 'same-origin' });
     if (!r.ok) throw 0;
     market = (await r.json()).offers.map(fromServer);
-    if (tab === 'trades') renderTrades();
+    if (tab === 'trades') renderTrades(); else if (tab === 'mine') renderMine();
   } catch { toast('Não foi possível carregar as ofertas de troca.'); }
 }
 async function apiTrocas(method, opts = {}) {
@@ -951,36 +953,10 @@ async function apiTrocas(method, opts = {}) {
   if (!r.ok) throw new Error(j.error || 'Erro ao falar com o servidor.');
   return j;
 }
-const pick = { give: null, want: null };
-// Condição da carta (padrão TCG) e estado do formulário de anúncio (cond = escolhida, editing = id do anúncio em edição).
-const COND = {
-  NM: { label: 'Near Mint', hint: 'praticamente nova', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' },
-  SP: { label: 'Slightly Played', hint: 'leve desgaste', cls: 'bg-lime-100 text-lime-800 dark:bg-lime-500/20 dark:text-lime-300' },
-  MP: { label: 'Moderately Played', hint: 'desgaste moderado', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300' },
-  HP: { label: 'Heavily Played', hint: 'muito desgastada', cls: 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300' },
-  D: { label: 'Damaged', hint: 'danificada', cls: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' },
-};
-const form = { cond: '', editing: null };
-// Ordenação das ofertas. Preço = valor Liga informado neste navegador; sem preço vai para o fim da lista.
-const nomeDe = o => String(cardOf(o.give)?.name || '');
-const precoDe = o => priceOf(o.give);
-const cmpNome = (lang, dir) => (a, b) => nomeDe(a).localeCompare(nomeDe(b), lang, { sensitivity: 'base' }) * dir;
-const cmpPreco = dir => (a, b) => { const x = precoDe(a), y = precoDe(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (x - y) * dir; };
-const TRADE_SORTS = {
-  recent: { label: 'Mais recentes', fn: null },
-  'pt-az': { label: 'Nome Português [A-Z]', fn: cmpNome('pt-BR', 1) },
-  'pt-za': { label: 'Nome Português [Z-A]', fn: cmpNome('pt-BR', -1) },
-  'en-az': { label: 'Nome Inglês [A-Z]', fn: cmpNome('en', 1) },
-  'en-za': { label: 'Nome Inglês [Z-A]', fn: cmpNome('en', -1) },
-  'price-asc': { label: 'Preço [0-9]', fn: cmpPreco(1) },
-  'price-desc': { label: 'Preço [9-0]', fn: cmpPreco(-1) },
-};
-let tradeSort = LS.get('pk-trade-sort', 'recent');
-if (!TRADE_SORTS[tradeSort]) tradeSort = 'recent';
-let tradeView = LS.get('pk-trade-view', 'list'); // 'list' (linhas) ou 'grid' (cartões em grade)
-if (tradeView !== 'grid') tradeView = 'list';
+const pick = { give: null, want: null, edit: null };
+let editingId = null; // anúncio em edição na aba Minhas Cartas
 const saveMarket = () => {};
-const lockedIds = () => new Set(user ? market.filter(o => o.owner === user.email && o.id !== form.editing).map(o => o.give) : []);
+const lockedIds = () => new Set(user ? market.filter(o => o.owner === user.email).map(o => o.give) : []);
 // Catálogo TCG completo: metadados (código, nome, expansão e URL da imagem) persistidos em IndexedDB.
 // As imagens são mostradas pela URL oficial do catálogo para evitar um HTML gigante.
 const tcgCardCache = LS.get('pk-tcg-card-cache-v1', {});
@@ -1288,16 +1264,11 @@ function scanBlock() {
 
 const chip = c => `<div class="text-center w-24"><img src="${c.image}" alt="${esc(c.name)}" loading="lazy" class="w-20 h-20 mx-auto object-contain"><span class="block text-xs text-slate-500 dark:text-slate-400">${c.number}</span><span class="block text-sm font-semibold truncate">${esc(c.name)}</span>${priceLine(c.id)}</div>`;
 const btnCls = 'px-3 py-1.5 rounded-lg text-sm font-semibold';
-const condBadge = k => COND[k] ? `<span title="${COND[k].label} (${COND[k].hint})" class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${COND[k].cls}">${k}</span>` : '';
-const condPicker = () => `<div class="mt-4">
-  <p id="cond-label" class="text-sm font-semibold mb-1">Condição da carta</p>
-  <div role="radiogroup" aria-labelledby="cond-label" class="flex flex-wrap gap-2">${Object.entries(COND).map(([k, c]) => `<button type="button" role="radio" aria-checked="${form.cond === k}" data-cond="${k}" title="${c.label} (${c.hint})" class="px-3 py-1.5 rounded-lg text-sm font-bold border ${form.cond === k ? 'border-[#004de9] bg-[#004de9] text-white' : 'border-slate-300 dark:border-slate-700 hover:border-[#004de9]'}">${k}</button>`).join('')}</div>
-  <p class="text-xs text-slate-500 mt-1">${form.cond ? `<strong>${form.cond}</strong> · ${COND[form.cond].label} (${COND[form.cond].hint})` : 'NM = Near Mint · SP = Slightly Played · MP = Moderately Played · HP = Heavily Played · D = Damaged'}</p></div>`;
 function pickRes(key, term) {
   const locked = lockedIds(), t = term.trim().toLowerCase();
   const list = [...allTcgCards, ...Object.values(tcgCardCache)]
     .filter(c => c && c.tcgId && c.image && c.number && c.setName && /^https?:\/\//i.test(c.image))
-    .filter(c => key === 'give' ? !locked.has(c.id) : !col.has(c.id))
+    .filter(c => key === 'want' ? !col.has(c.id) : !locked.has(c.id))
     .filter(c => !t || c.name.toLowerCase().includes(t) || c.number.includes(t)).slice(0, 6);
   return list.map(c => `<button data-pick="${key}" data-cid="${c.id}" class="px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">${c.number} ${esc(c.name)}</button>`).join('')
     || '<span class="text-xs text-slate-500">Nenhuma carta disponível</span>';
@@ -1321,26 +1292,19 @@ function renderTrades() {
   const offer = o => {
     const g = cardOf(o.give), mine = o.owner === user.email;
     const single = !o.want;
-    const chatBtn = mine ? '' : `<button data-chat="${o.id}" class="${btnCls} bg-[#004de9] text-white">💬 Conversar</button>`;
     const w = single ? null : cardOf(o.want);
     let act;
-    if (mine) act = `<button data-edit="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">✏️ Editar</button><button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover anúncio</button>`;
+    if (mine) act = `<button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover anúncio</button>`;
     else if (single) act = '<span class="text-xs text-slate-500">Carta anunciada para troca</span>';
     else {
       const why = !col.has(o.want) ? `Você precisa ter ${w.name}` : col.has(o.give) ? `Você já tem ${g.name}` : locked.has(o.want) ? 'Sua carta está em outra oferta' : '';
       act = why ? `<span class="text-xs text-slate-500">${esc(why)}</span>` : `<button data-accept="${o.id}" class="${btnCls} bg-[#004de9] text-white">Aceitar troca</button>`;
     }
-    if (tradeView === 'grid') return `<div class="flex flex-col gap-2 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-      <div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${condBadge(o.condition)}</div>
-      <img src="${esc(g.image)}" alt="${esc(g.name)}" loading="lazy" class="h-44 mx-auto object-contain">
-      <div class="text-center"><p class="text-sm font-semibold truncate">${esc(g.name)}</p><p class="text-xs text-slate-500">${esc(g.number)}</p>${priceLine(g.id)}</div>
-      ${single ? '<p class="text-xs text-slate-500 text-center">Quer trocar esta carta</p>' : `<div class="flex items-center justify-center gap-2"><span class="text-xl text-slate-400">⇄</span>${chip(w)}</div>${balance(o, mine)}`}
-      <div class="mt-auto flex flex-wrap items-center justify-end gap-2">${chatBtn}${act}</div></div>`;
     return `<div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span><div class="flex flex-col items-center gap-1">${chip(g)}${condBadge(o.condition)}</div>${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto flex flex-wrap items-center justify-end gap-2 text-right">${chatBtn}${act}</div></div>`;
+      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto text-right">${act}</div></div>`;
   };
-  const sortFn = TRADE_SORTS[tradeSort].fn;
-  const ordered = sortFn ? [...market].sort(sortFn) : [...market.filter(o => o.owner !== user.email), ...market.filter(o => o.owner === user.email)];
+  // Seus próprios anúncios não aparecem aqui: ficam na aba "Minhas Cartas".
+  const ordered = market.filter(o => o.owner !== user.email);
   const hist = LS.get('pk-trades-' + user.email, []).slice(0, 5);
   el.innerHTML = `
     <section class="mb-6 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
@@ -1359,23 +1323,47 @@ function renderTrades() {
       <div class="mt-3">${scanBlock()}</div>
     </section>
     <section class="mb-6 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-      <h2 id="trade-form" class="font-bold mb-1">${form.editing ? 'Editar anúncio' : 'Anunciar carta para troca'}</h2>
-      <p class="text-xs text-slate-500 mb-3">${form.editing ? 'Troque a carta ou a condição e salve as alterações.' : 'Informe o código ou o nome da carta que você quer oferecer e publique. Não é preciso que ela esteja na sua coleção.'}</p>
+      <h2 class="font-bold mb-1">Anunciar carta para troca</h2>
+      <p class="text-xs text-slate-500 mb-3">Informe o código ou o nome da carta que você quer oferecer e publique. Não é preciso que ela esteja na sua coleção.</p>
       <div class="flex flex-wrap gap-5">${picker('give', 'Carta que quero trocar')}</div>
-      ${condPicker()}
-      <div class="flex flex-wrap gap-2 mt-4"><button id="btn-pub" class="${btnCls} bg-[#004de9] text-white disabled:opacity-40" ${pick.give && form.cond ? '' : 'disabled'}>${form.editing ? 'Salvar alterações' : 'Publicar carta'}</button>${form.editing ? `<button type="button" data-edit-cancel class="${btnCls} border border-slate-300 dark:border-slate-700">Cancelar edição</button>` : ''}</div>
+      <button id="btn-pub" class="${btnCls} mt-4 bg-[#004de9] text-white disabled:opacity-40" ${pick.give ? '' : 'disabled'}>Publicar carta</button>
     </section>
     <section class="mb-6">
-      <div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold">Ofertas abertas</h2>
-        <label class="flex items-center gap-2 text-sm"><span class="text-slate-500">Ordenar por</span>
-          <select id="trade-sort" aria-label="Ordenar ofertas" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">${Object.entries(TRADE_SORTS).map(([k, o]) => `<option value="${k}"${k === tradeSort ? ' selected' : ''}>${o.label}</option>`).join('')}</select></label>
-        <div class="flex gap-1" role="group" aria-label="Modo de exibição">${[['list', 'Lista', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'], ['grid', 'Grade', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>']].map(([k, n, ic]) => `<button type="button" data-view="${k}" aria-pressed="${tradeView === k}" title="${n}" aria-label="${n}" class="h-9 w-9 rounded-full grid place-items-center ${tradeView === k ? 'bg-red-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200'}">${ic}</button>`).join('')}</div></div>
+      <div class="flex items-center justify-between mb-2"><h2 class="font-bold">Ofertas abertas</h2></div>
       <p class="text-xs text-slate-500 mb-3">Veja as cartas anunciadas pelos treinadores. Anúncios com uma única carta indicam o que a pessoa quer trocar.</p>
-      <div class="${tradeView === 'grid' ? 'grid gap-3 grid-cols-[repeat(auto-fill,minmax(230px,1fr))]' : 'space-y-3'}">${ordered.map(offer).join('') || '<p class="col-span-full text-slate-500 py-6 text-center">Nenhuma oferta aberta. Publique a primeira.</p>'}</div>
+      <div class="space-y-3">${ordered.map(offer).join('') || '<p class="text-slate-500 py-6 text-center">Nenhuma oferta de outros treinadores no momento.</p>'}</div>
     </section>
     <section><h2 class="font-bold mb-2">Minhas trocas recentes</h2>
       ${hist.length ? hist.map(h => `<p class="text-sm text-slate-600 dark:text-slate-400">Você deu ${esc(cardOf(h.give).name)} e recebeu ${esc(cardOf(h.get).name)} de ${esc(h.with)}.</p>`).join('') : '<p class="text-sm text-slate-500">Nenhuma troca concluída.</p>'}
     </section>`;
+}
+
+/* ---------- Minhas Cartas: anúncios do próprio usuário (editar / remover) ---------- */
+function renderMine() {
+  const el = $('#mine');
+  if (!user) { el.innerHTML = '<p class="py-16 text-center text-slate-500">Entre com sua conta para ver e editar suas cartas.</p>'; return; }
+  if (!data.length) { el.innerHTML = '<p class="py-16 text-center text-slate-500">Carregando cartas...</p>'; return; }
+  const mine = market.filter(o => o.owner === user.email);
+  const row = o => {
+    const g = cardOf(o.give);
+    if (!g) return '';
+    const editing = editingId === o.id;
+    return `<div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+      <div class="flex flex-wrap items-center gap-3">${chip(g)}
+        <div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">${esc(g.name)}</p><p class="text-xs text-slate-500">${esc(g.number || '')}${g.setName ? ' · ' + esc(g.setName) : ''}</p></div>
+        <div class="ml-auto flex gap-2">${editing
+          ? `<button data-edit-cancel class="${btnCls} border border-slate-300 dark:border-slate-700">Cancelar</button>`
+          : `<button data-edit="${o.id}" class="${btnCls} bg-[#004de9] text-white">Editar</button><button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover</button>`}</div>
+      </div>
+      ${editing ? `<div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800"><div class="flex flex-wrap gap-5">${picker('edit', 'Nova carta deste anúncio')}</div>
+        <button data-save-edit="${o.id}" class="${btnCls} mt-4 bg-[#004de9] text-white disabled:opacity-40" ${pick.edit ? '' : 'disabled'}>Salvar alterações</button></div>` : ''}
+    </div>`;
+  };
+  el.innerHTML = `<section>
+    <h2 class="font-bold mb-1">Minhas cartas anunciadas</h2>
+    <p class="text-xs text-slate-500 mb-3">Só você vê esta lista. Os outros treinadores veem seus anúncios na aba Trocas; você não os vê lá. Para anunciar uma nova carta, use a aba Trocas.</p>
+    <div class="space-y-3">${mine.map(row).join('') || '<p class="text-slate-500 py-6 text-center">Você ainda não anunciou nenhuma carta.</p>'}</div>
+  </section>`;
 }
 
 function accept(id) {
@@ -1402,7 +1390,8 @@ function accept(id) {
 $('#trades').addEventListener('submit', e => {
   if (e.target.id === 'liga-code-form') { e.preventDefault(); searchLigaByCode(); }
 });
-$('#trades').addEventListener('click', async e => {
+const refresh = () => (tab === 'mine' ? renderMine() : renderTrades());
+async function onTradeClick(e) {
   const t = e.target.closest('button');
   if (!t) return;
   if (t.hasAttribute('data-catalog-retry')) {
@@ -1411,7 +1400,7 @@ $('#trades').addEventListener('click', async e => {
     try { await preloadAllTcgCards(true); } finally { t.disabled = false; }
     return;
   }
-  if (t.dataset.pick) { pick[t.dataset.pick] = t.dataset.cid; const inp = document.querySelector(`[data-pq="${t.dataset.pick}"]`); if (inp) inp.value = ''; const box = document.querySelector(`#code-res-${t.dataset.pick}`); if (box) box.innerHTML = ''; renderTrades(); }
+  if (t.dataset.pick) { pick[t.dataset.pick] = t.dataset.cid; const inp = document.querySelector(`[data-pq="${t.dataset.pick}"]`); if (inp) inp.value = ''; const box = document.querySelector(`#code-res-${t.dataset.pick}`); if (box) box.innerHTML = ''; refresh(); }
   else if (t.dataset.codePick) {
     const key = t.dataset.codePick;
     const input = document.querySelector(`[data-pq="${key}"]`);
@@ -1423,10 +1412,10 @@ $('#trades').addEventListener('click', async e => {
     button.disabled = true; button.textContent = 'Buscando...';
     try { match = (await findTcgCardsByNameOrCode(code))[0] || await findTcgCardByCode(code); }
     catch (err) { alert('Não consegui consultar o catálogo de cartas. Verifique sua conexão e tente novamente.'); }
-    if (!match) { alert('Não encontrei uma carta com esse nome ou código. Confira o texto e tente novamente.'); renderTrades(); return; }
-    if (key === 'give' && locked.has(match.id)) { alert('Essa carta já está anunciada em outra troca.'); renderTrades(); return; }
+    if (!match) { alert('Não encontrei uma carta com esse nome ou código. Confira o texto e tente novamente.'); refresh(); return; }
+    if (key !== 'want' && locked.has(match.id)) { alert('Essa carta já está anunciada em outra troca.'); refresh(); return; }
     pick[key] = match.id;
-    renderTrades();
+    refresh();
   }
   else if (t.dataset.ligaPick) {
     const key = t.dataset.ligaPick;
@@ -1440,54 +1429,47 @@ $('#trades').addEventListener('click', async e => {
     if (a === 'own') { col.add(id); saveCol(); }
     else if (a === 'want') pick.want = id;
     else if (a === 'give' && !lockedIds().has(id)) pick.give = id;
-    renderTrades();
+    refresh();
   }
-  else if (t.dataset.view) { tradeView = t.dataset.view === 'grid' ? 'grid' : 'list'; LS.set('pk-trade-view', tradeView); renderTrades(); }
-  else if (t.dataset.cond) { form.cond = t.dataset.cond; renderTrades(); }
-  else if (t.dataset.edit) {
-    const o = market.find(x => x.id === t.dataset.edit);
-    if (!o) return;
-    form.editing = o.id; form.cond = o.condition || ''; pick.give = o.give; renderTrades();
-    document.getElementById('trade-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (!o.condition) toast('Esse anúncio ainda não tem condição. Selecione uma e salve.');
+  else if (t.dataset.edit) { editingId = t.dataset.edit; pick.edit = null; refresh(); }
+  else if (t.hasAttribute('data-edit-cancel')) { editingId = null; pick.edit = null; refresh(); }
+  else if (t.dataset.saveEdit) {
+    const id = t.dataset.saveEdit, card = pick.edit && cardOf(pick.edit);
+    if (!card) { toast('Escolha a nova carta antes de salvar.'); return; }
+    t.disabled = true; t.textContent = 'Salvando...';
+    try {
+      const { offer } = await apiTrocas('PUT', { q: '?id=' + encodeURIComponent(id), body: { giveCard: card } });
+      const i = market.findIndex(o => o.id === id); if (i >= 0) market[i] = fromServer(offer);
+      editingId = null; pick.edit = null; toast('Carta atualizada.');
+    } catch (err) { toast(err.message); }
+    refresh(); loadMarket();
   }
-  else if (t.hasAttribute('data-edit-cancel')) { form.editing = null; form.cond = ''; pick.give = null; renderTrades(); }
-  else if (t.dataset.chat) window.M44Chat?.open(t.dataset.chat);
   else if (t.dataset.accept) accept(t.dataset.accept);
   else if (t.dataset.cancel) {
     t.disabled = true;
-    try { await apiTrocas('DELETE', { q: '?id=' + encodeURIComponent(t.dataset.cancel) }); market = market.filter(o => o.id !== t.dataset.cancel); if (form.editing === t.dataset.cancel) { form.editing = null; form.cond = ''; pick.give = null; } toast('Anúncio removido.'); }
+    try { await apiTrocas('DELETE', { q: '?id=' + encodeURIComponent(t.dataset.cancel) }); market = market.filter(o => o.id !== t.dataset.cancel); if (editingId === t.dataset.cancel) editingId = null; toast('Anúncio removido.'); }
     catch (err) { toast(err.message); }
-    renderTrades(); loadMarket();
+    refresh(); loadMarket();
   }
   else if (t.id === 'btn-pub' && pick.give) {
-    if (!COND[form.cond]) { toast('Selecione a condição da carta.'); return; }
     if (lockedIds().has(pick.give)) { toast('Essa carta já está anunciada.'); return; }
     const giveCard = cardOf(pick.give);
     if (!giveCard) { toast('Carta não encontrada. Selecione novamente pelo código.'); return; }
-    const editing = form.editing;
-    t.disabled = true; t.textContent = editing ? 'Salvando...' : 'Publicando...';
+    t.disabled = true; t.textContent = 'Publicando...';
     try {
-      if (editing) {
-        const { offer } = await apiTrocas('PATCH', { q: '?id=' + encodeURIComponent(editing), body: { giveCard, condition: form.cond } });
-        const upd = fromServer(offer), i = market.findIndex(o => o.id === editing);
-        if (i >= 0) market[i] = upd; else market.unshift(upd);
-        toast('Anúncio atualizado.');
-      } else {
-        const { offer } = await apiTrocas('POST', { body: { giveCard, condition: form.cond } });
-        market.unshift(fromServer(offer)); toast('Carta publicada! Todos já podem ver na aba Trocas.');
-      }
-      pick.give = null; form.cond = ''; form.editing = null;
+      const { offer } = await apiTrocas('POST', { body: { giveCard } });
+      market.unshift(fromServer(offer)); pick.give = null; toast('Carta publicada! Gerencie em "Minhas Cartas".');
     } catch (err) { toast(err.message); }
-    renderTrades(); loadMarket();
+    refresh(); loadMarket();
   }
-});
+}
+$('#trades').addEventListener('click', onTradeClick);
+$('#mine').addEventListener('click', onTradeClick);
 $('#trades').addEventListener('change', e => {
   if (e.target.id === 'scan-file' && e.target.files[0]) runScan(e.target.files[0]);
-  else if (e.target.id === 'trade-sort') { tradeSort = TRADE_SORTS[e.target.value] ? e.target.value : 'recent'; LS.set('pk-trade-sort', tradeSort); renderTrades(); }
-  else if (e.target.dataset.price) { setPrice(e.target.dataset.price, e.target.value); renderTrades(); }
+  else if (e.target.dataset.price) { setPrice(e.target.dataset.price, e.target.value); refresh(); }
 });
-$('#trades').addEventListener('input', e => {
+function onTradeInput(e) {
   const k = e.target.dataset.pq;
   if (!k) return;
   const value = e.target.value;
@@ -1505,18 +1487,20 @@ $('#trades').addEventListener('input', e => {
     try {
       const matches = await findTcgCardsByNameOrCode(typed);
       if (inputNow.value.trim() !== typed) return;
-      const eligible = matches.filter(c => c && c.tcgId && c.image && c.number && c.setName && /^https?:\/\//i.test(c.image) && (k !== 'give' || !locked.has(c.id)));
+      const eligible = matches.filter(c => c && c.tcgId && c.image && c.number && c.setName && /^https?:\/\//i.test(c.image) && (k === 'want' || !locked.has(c.id)));
       suggestions.innerHTML = eligible.length ? eligible.map(c => `<button type="button" role="option" data-pick="${k}" data-cid="${c.id}" class="w-full flex items-center gap-3 text-left p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-[#004de9] hover:bg-blue-50 dark:hover:bg-slate-800 shadow-sm"><img src="${esc(c.image || '')}" alt="${esc(c.name || 'Carta Pokémon')}" class="w-14 h-20 object-contain shrink-0 rounded border border-slate-100 dark:border-slate-700" loading="lazy" onerror="this.style.opacity='.15'"><span class="min-w-0 flex-1"><span class="block text-sm font-semibold">${esc(c.name || 'Carta Pokémon')}</span><span class="block text-xs text-slate-500">${esc(c.number || '')} · ${esc(c.setName || '')}${c.rarity ? ' · ' + esc(c.rarity) : ''}</span></span><span class="text-xs font-bold text-[#004de9]">Selecionar</span></button>`).join('') : '<span class="text-xs text-slate-500 p-2">Nenhuma carta encontrada. Tente outro nome ou código.</span>';
     } catch (_) {
       suggestions.innerHTML = '<span class="text-xs text-slate-500 p-2">Não foi possível carregar sugestões online. Confira sua conexão; resultados já salvos continuam disponíveis.</span>';
     }
   }, 300);
-});
+}
+$('#trades').addEventListener('input', onTradeInput);
+$('#mine').addEventListener('input', onTradeInput);
 
 addEventListener('storage', e => { if (e.key && /^pk-(col|sets|expcards)-/.test(e.key)) { loadCol(); render(); } });
 loadCol();
 renderUser();
-initAuth().then(() => { loadMarket(); window.M44Chat?.refresh(); });
+initAuth().then(loadMarket);
 loadData();
 preloadAllTcgCards();
 loadSets();
