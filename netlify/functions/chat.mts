@@ -13,6 +13,7 @@ import { conversations, messages, tradeOffers } from '../../db/schema.js'
 //   GET  /api/chat/conversations/:id/messages         ?after=<id da última mensagem>
 //   POST /api/chat/conversations/:id/messages         multipart: body (texto) e/ou image (arquivo)
 //   GET  /api/chat/messages/:id/image
+//   DELETE /api/chat/conversations/:id                (só se o anúncio já foi removido)
 const MAX_TEXTO = 2000
 const MAX_IMAGEM = 4 * 1024 * 1024
 const TIPOS_IMAGEM = ['image/jpeg', 'image/png', 'image/webp']
@@ -89,6 +90,22 @@ export default async (req: Request) => {
       return json({ conversation: conversaJson(conv, uid) })
     }
     return new Response('Method not allowed', { status: 405 })
+  }
+
+  /* ---------- DELETE /conversations/:id (só conversas de anúncio já removido/finalizado) ---------- */
+  if (partes.length === 2 && partes[0] === 'conversations' && req.method === 'DELETE') {
+    const convId = Number(partes[1])
+    if (!Number.isInteger(convId)) return erro('Conversa inválida.', 400)
+    const [conv] = await db.select().from(conversations).where(eq(conversations.id, convId)).limit(1)
+    if (!conv || !participa(conv, uid)) return erro('Conversa não encontrada.', 404)
+    if (conv.offerId !== null) return erro('Só é possível excluir conversas de anúncios já finalizados ou removidos.', 409)
+    // Apaga as imagens guardadas e depois a conversa (as mensagens saem junto, por ON DELETE CASCADE).
+    const comImagem = await db.select({ key: messages.imageKey }).from(messages)
+      .where(and(eq(messages.conversationId, convId), sql`${messages.imageKey} is not null`))
+    const store = getStore('chat-images')
+    await Promise.allSettled(comImagem.map(m => (m.key ? store.delete(m.key) : Promise.resolve())))
+    await db.delete(conversations).where(eq(conversations.id, convId))
+    return json({ ok: true })
   }
 
   /* ---------- /conversations/:id/messages ---------- */

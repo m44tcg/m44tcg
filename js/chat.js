@@ -114,6 +114,7 @@
         <img src="${esc(c.cardImage)}" alt="" class="w-9 h-12 object-contain rounded shrink-0" onerror="this.style.opacity=.15">
         <div class="min-w-0"><p class="font-bold text-sm truncate">${esc(c.peerName)}</p>
           <p class="text-xs text-slate-500 truncate">Carta: ${esc(c.cardName)}${c.offerActive ? '' : ' · anúncio removido'}</p></div>
+        ${c.offerActive ? '' : '<button type="button" data-chat-del class="ml-auto shrink-0 px-3 py-1.5 rounded-lg border border-red-300 text-red-600 dark:border-red-800 dark:text-red-400 text-xs font-semibold hover:bg-red-50 dark:hover:bg-red-950">Excluir conversa</button>'}
       </header>
       <div id="chat-msgs" class="flex-1 overflow-y-auto p-3 space-y-2" aria-live="polite"><p class="text-center text-xs text-slate-500 py-6">Carregando mensagens…</p></div>
       <div id="chat-preview"></div>
@@ -200,6 +201,16 @@
     } catch (e) { toast(e.message); }
     finally { S.sending = false; const b = q('#chat-send'); if (b) b.disabled = false; }
   }
+  async function removeConv() {
+    const c = cur(); if (!c || c.offerActive) return;
+    if (!confirm(`Excluir esta conversa com ${c.peerName}? As mensagens e imagens serão apagadas para os dois lados. Isso não pode ser desfeito.`)) return;
+    try {
+      await api(`/conversations/${c.id}`, { method: 'DELETE' });
+      S.convs = S.convs.filter(x => x.id !== c.id);
+      S.active = null; S.msgs = []; S.lastId = 0; clearPending();
+      updateBadge(); layout(); toast('Conversa excluída.');
+    } catch (e) { toast(e.message); }
+  }
   function select(id) { S.active = id; S.msgs = []; S.lastId = 0; clearPending(); layout(); loadMsgs(); }
 
   /* ---------- Eventos ---------- */
@@ -210,6 +221,7 @@
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.conv) select(Number(t.dataset.conv));
     else if ('chatBack' in t.dataset) { S.active = null; layout(); }
+    else if ('chatDel' in t.dataset) removeConv();
     else if ('chatUnpick' in t.dataset) { clearPending(); drawPreview(); }
   });
   root.addEventListener('submit', e => { if (e.target.id === 'chat-form') { e.preventDefault(); send(); } });
