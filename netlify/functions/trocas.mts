@@ -8,13 +8,27 @@ import { tradeOffers } from '../../db/schema.js'
 const MAX_POR_USUARIO = 50
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
+// Só imagens https de hosts conhecidos (evita rastreadores e conteúdo malicioso nos anúncios).
+const IMG_HOSTS = ['images.pokemontcg.io', 'images.scrydex.com', 'raw.githubusercontent.com']
+const okImage = (u: string) => { try { const x = new URL(u); return x.protocol === 'https:' && IMG_HOSTS.includes(x.hostname) } catch { return false } }
+// Bloqueia requisições de escrita vindas de outros sites (defesa extra contra CSRF).
+const crossSite = (req: Request) => {
+  if (req.method === 'GET' || req.method === 'HEAD') return false
+  const o = req.headers.get('origin'); if (!o) return false
+  try { return new URL(o).host !== new URL(req.url).host } catch { return true }
+}
+const SAFE_ID = /^[\w.:-]{1,120}$/
+const SAFE_NUM = /^[\w./ -]{0,40}$/
+
 function cleanCard(c: any) {
   if (!c || typeof c !== 'object') return null
   const card = {
     id: str(c.id, 120), name: str(c.name, 120), number: str(c.number, 40),
     image: str(c.image, 500), setName: str(c.setName, 120), tcgId: str(c.tcgId, 80),
   }
-  if (!card.id || !card.name || !/^https?:\/\//i.test(card.image)) return null
+  if (!card.id || !card.name || !SAFE_ID.test(card.id) || !okImage(card.image)) return null
+  if (!SAFE_NUM.test(card.number)) card.number = ''
+  if (card.tcgId && !SAFE_ID.test(card.tcgId)) card.tcgId = ''
   return card
 }
 
@@ -33,6 +47,7 @@ const toJson = (r: typeof tradeOffers.$inferSelect, userId?: string) => ({
 })
 
 export default async (req: Request) => {
+  if (crossSite(req)) return Response.json({ error: 'Origem não permitida.' }, { status: 403 })
   const user = await getUser()
 
   if (req.method === 'GET') {

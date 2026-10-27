@@ -1,3 +1,71 @@
 [build]
   # Lista as imagens de assets/cartas/ para o carrossel da página inicial
   command = "npm run cartas"
+
+# ---------- Cabeçalhos de segurança ----------
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=(), usb=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    # Parte da política que já pode ser aplicada sem quebrar o site:
+    Content-Security-Policy = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+    # Política completa em modo de teste: só registra avisos no console (F12), não bloqueia nada.
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.pokemontcg.io https://pokeapi.co https://raw.githubusercontent.com https://esm.sh https://cdn.jsdelivr.net; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+
+# As respostas da API nunca devem ficar em cache compartilhado.
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "private, no-store"
+
+# ---------- Esconde arquivos internos do projeto ----------
+# Sem isso, o Netlify publica a pasta inteira e qualquer pessoa consegue abrir, por exemplo, /db/schema.ts ou /package.json.
+[[redirects]]
+  from = "/node_modules/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/db/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/scripts/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/.claude/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/drizzle/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/package.json"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/package-lock.json"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/netlify.toml"
+  to = "/404.html"
+  status = 404
+  force = true

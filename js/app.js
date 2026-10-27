@@ -332,9 +332,9 @@ function render() {
         <span class="w-24 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden hidden sm:block"><span data-gb="${g.gen}" class="block h-full bg-[#004de9]"></span></span>
       </summary>
       <div class="grid grid-cols-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 sm:gap-3 p-2 sm:p-4 pt-1">
-        ${cards.map(c => `<button data-id="${c.id}" aria-pressed="${col.has(c.id)}" class="slot ${col.has(c.id) ? 'on' : 'off'} rounded-xl p-1 sm:p-2 bg-slate-50 dark:bg-slate-800/60 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#004de9]">
-          <img src="${c.image}" alt="${esc(c.name)}" loading="lazy" decoding="async" class="w-full aspect-square object-contain" onerror="this.style.opacity=.15">
-          <span class="block text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">${c.number}</span>
+        ${cards.map(c => `<button data-id="${esc(c.id)}" aria-pressed="${col.has(c.id)}" class="slot ${col.has(c.id) ? 'on' : 'off'} rounded-xl p-1 sm:p-2 bg-slate-50 dark:bg-slate-800/60 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#004de9]">
+          <img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy" decoding="async" class="w-full aspect-square object-contain" onerror="this.style.opacity=.15">
+          <span class="block text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">${esc(c.number)}</span>
           <span class="block text-[10px] sm:text-sm font-semibold truncate">${esc(c.name)}</span>
         </button>`).join('')}
       </div></details>`;
@@ -1319,15 +1319,15 @@ function scanBlock() {
   }).join('');
 }
 
-const chip = c => `<div class="text-center w-24"><img src="${c.image}" alt="${esc(c.name)}" loading="lazy" class="w-20 h-20 mx-auto object-contain"><span class="block text-xs text-slate-500 dark:text-slate-400">${c.number}</span><span class="block text-sm font-semibold truncate">${esc(c.name)}</span>${priceLine(c.id)}</div>`;
+const chip = c => `<div class="text-center w-24"><img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy" class="w-20 h-20 mx-auto object-contain"><span class="block text-xs text-slate-500 dark:text-slate-400">${esc(c.number)}</span><span class="block text-sm font-semibold truncate">${esc(c.name)}</span>${priceLine(c.id)}</div>`;
 const btnCls = 'px-3 py-1.5 rounded-lg text-sm font-semibold';
 function pickRes(key, term) {
   const locked = lockedIds(), t = term.trim().toLowerCase();
   const list = [...allTcgCards, ...Object.values(tcgCardCache)]
-    .filter(c => c && c.tcgId && c.image && c.number && c.setName && /^https?:\/\//i.test(c.image))
+    .filter(c => c && c.tcgId && c.image && c.number && c.setName && /^https:\/\//i.test(c.image))
     .filter(c => key === 'want' ? !col.has(c.id) : !locked.has(c.id))
     .filter(c => t && (c.name.toLowerCase().includes(t) || c.number.includes(t))).slice(0, 12);
-  return list.map(c => `<button data-pick="${key}" data-cid="${c.id}" class="px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">${c.number} ${esc(c.name)}</button>`).join('')
+  return list.map(c => `<button data-pick="${esc(key)}" data-cid="${esc(c.id)}" class="px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">${esc(c.number)} ${esc(c.name)}</button>`).join('')
     || `<span class="text-xs text-slate-500">${t ? 'Nenhuma carta disponível' : 'Digite o nome ou o código para ver sugestões.'}</span>`;
 }
 const picker = (key, label) => `<div class="flex-1 min-w-[220px]">
@@ -1571,7 +1571,7 @@ function onTradeInput(e) {
       const matches = await findTcgCardsByNameOrCode(typed);
       if (inputNow.value.trim() !== typed) return;
       const eligible = matches.filter(c => c && c.tcgId && c.image && c.number && c.setName && /^https?:\/\//i.test(c.image) && (k === 'want' || !locked.has(c.id)));
-      suggestions.innerHTML = eligible.length ? eligible.map(c => `<button type="button" role="option" data-pick="${k}" data-cid="${c.id}" class="w-full flex items-center gap-3 text-left p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-[#004de9] hover:bg-blue-50 dark:hover:bg-slate-800 shadow-sm"><img src="${esc(c.image || '')}" alt="${esc(c.name || 'Carta Pokémon')}" class="w-14 h-20 object-contain shrink-0 rounded border border-slate-100 dark:border-slate-700" loading="lazy" onerror="this.style.opacity='.15'"><span class="min-w-0 flex-1"><span class="block text-sm font-semibold">${esc(c.name || 'Carta Pokémon')}</span><span class="block text-xs text-slate-500">${esc(c.number || '')} · ${esc(c.setName || '')}${c.rarity ? ' · ' + esc(c.rarity) : ''}</span></span><span class="text-xs font-bold text-[#004de9]">Selecionar</span></button>`).join('') : '<span class="text-xs text-slate-500 p-2">Nenhuma carta encontrada. Tente outro nome ou código.</span>';
+      suggestions.innerHTML = eligible.length ? eligible.map(c => `<button type="button" role="option" data-pick="${esc(k)}" data-cid="${esc(c.id)}" class="w-full flex items-center gap-3 text-left p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-[#004de9] hover:bg-blue-50 dark:hover:bg-slate-800 shadow-sm"><img src="${esc(c.image || '')}" alt="${esc(c.name || 'Carta Pokémon')}" class="w-14 h-20 object-contain shrink-0 rounded border border-slate-100 dark:border-slate-700" loading="lazy" onerror="this.style.opacity='.15'"><span class="min-w-0 flex-1"><span class="block text-sm font-semibold">${esc(c.name || 'Carta Pokémon')}</span><span class="block text-xs text-slate-500">${esc(c.number || '')} · ${esc(c.setName || '')}${c.rarity ? ' · ' + esc(c.rarity) : ''}</span></span><span class="text-xs font-bold text-[#004de9]">Selecionar</span></button>`).join('') : '<span class="text-xs text-slate-500 p-2">Nenhuma carta encontrada. Tente outro nome ou código.</span>';
     } catch (_) {
       suggestions.innerHTML = '<span class="text-xs text-slate-500 p-2">Não foi possível carregar sugestões online. Confira sua conexão; resultados já salvos continuam disponíveis.</span>';
     }

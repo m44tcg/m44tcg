@@ -40,7 +40,22 @@ function conversaJson(c: Conv, uid: string, unread = 0) {
   }
 }
 
+// Bloqueia requisições de escrita vindas de outros sites (defesa extra contra CSRF).
+const crossSite = (req: Request) => {
+  if (req.method === 'GET' || req.method === 'HEAD') return false
+  const o = req.headers.get('origin'); if (!o) return false
+  try { return new URL(o).host !== new URL(req.url).host } catch { return true }
+}
+// Confere o conteúdo real do arquivo (não confia no tipo informado pelo navegador).
+function tipoReal(b: Uint8Array): string | null {
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png'
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+  return null
+}
+
 export default async (req: Request) => {
+  if (crossSite(req)) return erro('Origem não permitida.', 403)
   const user = await getUser()
   if (!user) return erro('Entre com sua conta para continuar.', 401)
   const uid = user.id
@@ -142,14 +157,22 @@ export default async (req: Request) => {
       const temImagem = arquivo instanceof File && arquivo.size > 0
       if (!texto && !temImagem) return erro('Escreva uma mensagem ou anexe uma imagem.', 400)
 
+      // Limite de envio: no máximo 30 mensagens por minuto por usuário.
+      const [{ n: recentes }] = await db.select({ n: sql<number>`count(*)::int` }).from(messages)
+        .where(and(eq(messages.senderId, uid), gt(messages.createdAt, new Date(Date.now() - 60_000))))
+      if (recentes >= 30) return erro('Você está enviando mensagens rápido demais. Aguarde um instante.', 429)
+
       let imageKey: string | null = null, imageType: string | null = null
       if (temImagem) {
         const f = arquivo as File
         if (!TIPOS_IMAGEM.includes(f.type)) return erro('Use uma imagem JPG, PNG ou WebP.', 400)
         if (f.size > MAX_IMAGEM) return erro('Imagem muito grande.', 400)
+        const dados = await f.arrayBuffer()
+        const real = tipoReal(new Uint8Array(dados, 0, Math.min(16, dados.byteLength)))
+        if (!real) return erro('Arquivo de imagem inválido.', 400)
         imageKey = `${convId}/${randomUUID()}`
-        imageType = f.type
-        await getStore('chat-images').set(imageKey, await f.arrayBuffer(), { metadata: { type: f.type } })
+        imageType = real
+        await getStore('chat-images').set(imageKey, dados, { metadata: { type: real } })
       }
 
       const [msg] = await db.insert(messages).values({
