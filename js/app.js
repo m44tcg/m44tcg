@@ -1071,6 +1071,43 @@ async function preloadAllTcgCards(forceRetry = false) {
   })().finally(() => { catalogLoadPromise = null; });
   return catalogLoadPromise;
 }
+/* ---------- Busca por todos os tipos de código ----------
+   Aceita: 90/128 · 090/128 · 90 · me55-90 · sv1 025 · SVI 25/198 (código PTCGO/Liga) · TG05 · GG10 · SWSH123 · SVP 045 */
+const PTCGO_FALLBACK = { sv1:'SVI', sv2:'PAL', sv3:'OBF', sv3pt5:'MEW', sv4:'PAR', sv4pt5:'PAF', sv5:'TEF', sv6:'TWM', sv6pt5:'SFA', sv7:'SCR', sv8:'SSP', sv8pt5:'PRE', sv9:'JTG', sv10:'DRI', zsv10pt5:'BLK', rsv10pt5:'WHT',
+  swsh1:'SSH', swsh2:'RCL', swsh3:'DAA', swsh35:'CPA', swsh4:'VIV', swsh45:'SHF', swsh5:'BST', swsh6:'CRE', swsh7:'EVS', cel25:'CEL', swsh8:'FST', swsh9:'BRS', swsh10:'ASR', pgo:'PGO', swsh11:'LOR', swsh12:'SIT', swsh12pt5:'CRZ',
+  sm1:'SUM', sm2:'GRI', sm3:'BUS', sm35:'SLG', sm4:'CIN', sm5:'UPR', sm6:'FLI', sm7:'CES', sm75:'DRM', sm8:'LOT', sm9:'TEU', sm10:'UNB', sm11:'UNM', sm115:'HIF', sm12:'CEC', me1:'MEG', me2:'PFL', me2pt5:'ASC' };
+let _ptcgoBySet = null;
+function ptcgoOf(setId) {
+  if (!_ptcgoBySet) {
+    _ptcgoBySet = {};
+    (window.M44_SETS_DB || []).forEach(x => { if (x.ptcgoCode) _ptcgoBySet[x.id] = String(x.ptcgoCode).toLowerCase(); });
+  }
+  return _ptcgoBySet[setId] || (PTCGO_FALLBACK[setId] || '').toLowerCase();
+}
+const cardSetId = c => { const t = String(c.tcgId || ''); const i = t.lastIndexOf('-'); return i > 0 ? t.slice(0, i).toLowerCase() : ''; };
+// "TG05/30" -> { pre:'tg', num:5, suf:'', tot:'30' }
+function cardNumInfo(c) {
+  const m = /^([a-z]*)0*(\d+)([a-z]*)(?:\/(.+))?$/i.exec(String(c.number || '').replace(/\s+/g, ''));
+  return m ? { pre: m[1].toLowerCase(), num: Number(m[2]), suf: m[3].toLowerCase(), tot: (m[4] || '').toLowerCase() } : null;
+}
+// Interpreta o que foi digitado; devolve null se não parecer um código.
+function parseCodeQuery(raw) {
+  const t = String(raw || '').trim().toLowerCase().replace(/[–—_]/g, '-').replace(/\s*\/\s*/g, '/');
+  let m = /^0*(\d+)([a-z]?)(?:\/(\d*))?$/.exec(t.replace(/\s+/g, ''));
+  if (m) return { kind: 'num', num: Number(m[1]), suf: m[2], tot: (m[3] || '').replace(/^0+(?=\d)/, '') };
+  m = /^([a-z][a-z0-9]*?)[\s\-]*0*(\d+)([a-z]?)(?:\/(\w+))?$/.exec(t);
+  if (m) return { kind: 'pre', pre: m[1], num: Number(m[2]), suf: m[3], tot: (m[4] || '').replace(/^0+(?=\d)/, '') };
+  return null;
+}
+function codeMatches(c, q) {
+  const n = cardNumInfo(c); if (!n) return false;
+  if (n.num !== q.num || (q.suf && n.suf !== q.suf)) return false;
+  const tot = n.tot.replace(/^[a-z]*0*(?=\d)/, '');
+  if (q.tot && !tot.startsWith(q.tot.replace(/^[a-z]*0*(?=\d)/, ''))) return false;
+  if (q.kind === 'num') return true;
+  const sid = cardSetId(c);
+  return q.pre === sid || q.pre === ptcgoOf(sid) || q.pre === n.pre || String(c.tcgId || '').toLowerCase() === `${q.pre}-${q.num}`;
+}
 const codeSuggestTimers = {};
 async function findTcgCardsByPartialCode(query) {
   const clean = normalizeCardCode(query);
@@ -1122,16 +1159,19 @@ async function findTcgCardsByNameOrCode(query) {
   const unique = new Map();
   [...allLocal, ...allTcgCards, ...Object.values(tcgCardCache)].forEach(c => { if (c?.id) unique.set(c.id, c); });
   const isCode = /^\d+(?:\/\d*)?$/.test(clean);
-  const matchesLocal = c => isCode
-    ? normalizeCardCode(c.number).includes(clean)
-    : String(c.name || '').toLocaleLowerCase().includes(raw.toLocaleLowerCase()) || String(c.setName || '').toLocaleLowerCase().includes(raw.toLocaleLowerCase());
+  const cq = parseCodeQuery(raw);
+  const low = raw.toLocaleLowerCase();
+  const matchesLocal = c => (isCode && normalizeCardCode(c.number).includes(clean)) || (cq && codeMatches(c, cq))
+    || (!isCode && (String(c.name || '').toLocaleLowerCase().includes(low) || String(c.setName || '').toLocaleLowerCase().includes(low)));
   let matches = [...unique.values()].filter(matchesLocal);
   // Consulta o catálogo online para nomes e códigos; os resultados guardam nome, número e imagem da MESMA carta.
   try {
     const safe = raw.replace(/[\\{}()[\]^"~*?:!+\-&|]/g, ' ').trim().replace(/\s+/g, ' ');
     const q = isCode
       ? (clean.includes('/') ? `number:${clean.split('/')[0]}*` : `number:*${clean}*`)
-      : `name:${safe.split(' ').map(w => w + '*').join(' AND name:')}`;
+      : (cq && cq.kind === 'pre')
+        ? `(set.id:${cq.pre} OR set.ptcgoCode:${cq.pre.toUpperCase()} OR number:${cq.pre.toUpperCase()}*) number:*${cq.num}*`
+        : `name:${safe.split(' ').map(w => w + '*').join(' AND name:')}`;
     const response = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=100&orderBy=-set.releaseDate`);
     if (response.ok) {
       const json = await response.json();
@@ -1153,6 +1193,11 @@ async function findTcgCardsByNameOrCode(query) {
     }).slice(0, 30);
 }
 async function findTcgCardByCode(code) {
+  const cq = parseCodeQuery(code);
+  if (cq && cq.kind === 'pre') {
+    const hit = [...allTcgCards, ...Object.values(tcgCardCache)].find(c => codeMatches(c, cq));
+    if (hit) return hit;
+  }
   const clean = normalizeCardCode(code);
   const local = data.flatMap(g => g.cards).find(c => normalizeCardCode(c.number) === clean || normalizeCardCode(c.number).endsWith('/' + clean));
   if (local) return local;
