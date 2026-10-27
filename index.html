@@ -30,6 +30,7 @@
       <button data-tab="store" role="tab" class="tab">Loja</button>
       <button data-tab="trades" role="tab" class="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>Trocas</button>
       <button data-tab="mine" role="tab" class="tab" style="display:none">Minhas Cartas</button>
+      <button data-tab="chat" role="tab" class="tab" style="display:none">Minhas Conversas<span id="chat-badge" class="ml-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#004de9] text-white text-[10px] font-bold place-items-center" style="display:none">0</span></button>
       <button data-tab="all" role="tab" class="tab">Minha Coleção</button>
     </nav>
     <div class="site-actions">
@@ -67,6 +68,7 @@
   <div id="search" class="hidden"></div>
   <div id="trades" class="hidden"></div>
   <div id="mine" class="hidden"></div>
+  <div id="chat" class="hidden"></div>
 </main>
 
 <div id="admin-modal" class="fixed inset-0 z-50 hidden items-start justify-center bg-slate-950/70 p-3 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Editar loja"><section class="w-full max-w-3xl my-4 rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-6"><div id="admin-body"></div></section></div>
@@ -90,9 +92,10 @@
   </section>
 </div>
 
-<script src="js/m44-db.js"></script>
-<script src="js/db-bootstrap.js"></script>
+<script src="js/m44-db.js?v=3"></script>
+<script src="js/db-bootstrap.js?v=3"></script>
 <script src="assets/cartas/lista.js"></script>
 <script src="js/app.js?v=3"></script>
+<script src="js/chat.js?v=3"></script>
 </body>
 </html>

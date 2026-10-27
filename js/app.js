@@ -90,7 +90,8 @@ async function logoutUser() {
 function renderUser() {
   applyStore();
   const mt = document.querySelector('[data-tab="mine"]'); if (mt) mt.style.display = user ? '' : 'none';
-  if (!user && tab === 'mine') tab = 'store';
+  const ct = document.querySelector('[data-tab="chat"]'); if (ct) ct.style.display = user ? '' : 'none';
+  if (!user && (tab === 'mine' || tab === 'chat')) tab = 'store';
   const a = $('#user-area');
   if (user) {
     a.innerHTML = `<div class="flex items-center gap-2">
@@ -298,14 +299,16 @@ function render() {
     b.setAttribute('aria-selected', on);
     b.classList.toggle('is-active', on);
   });
-  const trades = tab === 'trades', store = tab === 'store', srch = tab === 'search', mine = tab === 'mine';
+  const trades = tab === 'trades', store = tab === 'store', srch = tab === 'search', mine = tab === 'mine', chat = tab === 'chat';
+  const chatEl = $('#chat'); if (chatEl) chatEl.classList.toggle('hidden', !chat);
   $('#store').classList.toggle('hidden', !store);
   $('#trades').classList.toggle('hidden', !trades);
   $('#search').classList.toggle('hidden', !srch);
   $('#mine').classList.toggle('hidden', !mine);
-  $('#gens').classList.toggle('hidden', trades || store || srch || mine);
-  $('#toolbar').classList.toggle('hidden', trades || store || srch || mine);
-  $('#progress').classList.toggle('hidden', store || srch || mine);
+  $('#gens').classList.toggle('hidden', trades || store || srch || mine || chat);
+  $('#toolbar').classList.toggle('hidden', trades || store || srch || mine || chat);
+  $('#progress').classList.toggle('hidden', store || srch || mine || chat);
+  if (chat) { if (window.M44Chat) window.M44Chat.render(); return; }
   if (store) return renderStore();
   if (srch) return renderSearch();
   if (mine) { loadMarket(); return renderMine(); }
@@ -1354,6 +1357,7 @@ function renderTrades() {
       const why = !col.has(o.want) ? `Você precisa ter ${w.name}` : col.has(o.give) ? `Você já tem ${g.name}` : locked.has(o.want) ? 'Sua carta está em outra oferta' : '';
       act = why ? `<span class="text-xs text-slate-500">${esc(why)}</span>` : `<button data-accept="${o.id}" class="${btnCls} bg-[#004de9] text-white">Aceitar troca</button>`;
     }
+    if (!mine) act += ` <button data-chat-offer="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700 ml-1">💬 Conversar</button>`;
     return `<div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
       <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p>${detailsLine(o)}<p class="text-xs text-slate-500 mt-1">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto text-right">${act}</div></div>`;
   };
@@ -1520,6 +1524,7 @@ async function onTradeClick(e) {
     } catch (err) { toast(err.message); }
     refresh(); loadMarket();
   }
+  else if (t.dataset.chatOffer) { if (window.M44Chat) window.M44Chat.open(t.dataset.chatOffer); }
   else if (t.dataset.accept) accept(t.dataset.accept);
   else if (t.dataset.cancel) {
     t.disabled = true;
@@ -1578,7 +1583,7 @@ $('#mine').addEventListener('input', onTradeInput);
 addEventListener('storage', e => { if (e.key && /^pk-(col|sets|expcards)-/.test(e.key)) { loadCol(); render(); } });
 loadCol();
 renderUser();
-initAuth().then(loadMarket);
+initAuth().then(loadMarket).then(() => { if (window.M44Chat) window.M44Chat.refresh(); });
 loadData();
 preloadAllTcgCards();
 loadSets();
