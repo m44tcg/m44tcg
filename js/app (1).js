@@ -931,7 +931,8 @@ LS.set('pk-market', null);
 const fromServer = o => {
   if (o.giveCard?.id) tcgCardCache[o.giveCard.id] ||= o.giveCard;
   if (o.wantCard?.id) tcgCardCache[o.wantCard.id] ||= o.wantCard;
-  return { id: o.id, owner: o.mine && user ? user.email : 'outro:' + o.id, ownerName: o.ownerName, give: o.give, want: o.want || null };
+  return { id: o.id, owner: o.mine && user ? user.email : 'outro:' + o.id, ownerName: o.ownerName, give: o.give, want: o.want || null,
+    price: typeof o.giveCard?.price === 'number' ? o.giveCard.price : null, condition: o.giveCard?.condition || '', note: o.giveCard?.note || '' };
 };
 async function loadMarket() {
   try {
@@ -953,6 +954,14 @@ async function apiTrocas(method, opts = {}) {
   if (!r.ok) throw new Error(j.error || 'Erro ao falar com o servidor.');
   return j;
 }
+const COND = { M: 'Mint (M)', NM: 'Near Mint (NM)', SP: 'Pouco usada (SP)', MP: 'Moderadamente usada (MP)', HP: 'Muito usada (HP)', D: 'Danificada (D)' };
+const detailsLine = o => {
+  const parts = [];
+  if (o.condition && COND[o.condition]) parts.push(`<span class="px-2 py-0.5 rounded-full text-[11px] font-bold border border-emerald-400 text-emerald-600 dark:text-emerald-400">${esc(COND[o.condition])}</span>`);
+  if (typeof o.price === 'number') parts.push(`<span class="font-bold text-[#004de9] dark:text-[#6e9bff]">${brl(o.price)}</span>`);
+  return (parts.length ? `<div class="flex flex-wrap items-center gap-2 mt-1 text-sm">${parts.join('')}</div>` : '') + (o.note ? `<p class="text-xs text-slate-500 mt-1">${esc(o.note)}</p>` : '');
+};
+let editDraft = { price: '', cond: '', note: '' };
 const pick = { give: null, want: null, edit: null };
 let editingId = null; // anúncio em edição na aba Minhas Cartas
 const saveMarket = () => {};
@@ -1141,7 +1150,7 @@ async function findTcgCardsByNameOrCode(query) {
       const bb = isCode ? normalizeCardCode(b.number) : String(b.name || '').toLocaleLowerCase();
       const needle = isCode ? clean : raw.toLocaleLowerCase();
       return Number(aa.startsWith(needle)) * -1 + Number(bb.startsWith(needle)) || (a.setName || '').localeCompare(b.setName || '') || (a.name || '').localeCompare(b.name || '');
-    }).slice(0, 10);
+    }).slice(0, 30);
 }
 async function findTcgCardByCode(code) {
   const clean = normalizeCardCode(code);
@@ -1269,9 +1278,9 @@ function pickRes(key, term) {
   const list = [...allTcgCards, ...Object.values(tcgCardCache)]
     .filter(c => c && c.tcgId && c.image && c.number && c.setName && /^https?:\/\//i.test(c.image))
     .filter(c => key === 'want' ? !col.has(c.id) : !locked.has(c.id))
-    .filter(c => !t || c.name.toLowerCase().includes(t) || c.number.includes(t)).slice(0, 6);
+    .filter(c => t && (c.name.toLowerCase().includes(t) || c.number.includes(t))).slice(0, 12);
   return list.map(c => `<button data-pick="${key}" data-cid="${c.id}" class="px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">${c.number} ${esc(c.name)}</button>`).join('')
-    || '<span class="text-xs text-slate-500">Nenhuma carta disponível</span>';
+    || `<span class="text-xs text-slate-500">${t ? 'Nenhuma carta disponível' : 'Digite o nome ou o código para ver sugestões.'}</span>`;
 }
 const picker = (key, label) => `<div class="flex-1 min-w-[220px]">
   <p class="text-sm font-semibold mb-1">${label}</p>
@@ -1279,7 +1288,7 @@ const picker = (key, label) => `<div class="flex-1 min-w-[220px]">
   <input data-pq="${key}" placeholder="Buscar por nome ou código (ex.: 123/198)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
   <div class="flex flex-wrap gap-2 mt-2"><button type="button" data-code-pick="${key}" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#004de9] text-white">Selecionar pelo código</button><button type="button" data-liga-pick="${key}" class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">Consultar preço na Liga Pokémon</button></div>
   <p class="text-xs text-slate-500 mt-1">Digite o nome da carta ou o código (ex.: Charizard ou 123/198) e selecione a sugestão com a imagem correspondente.</p>
-  <p data-catalog-status class="text-[11px] text-slate-500 mt-1">Banco de cartas: aguardando carregamento…</p>
+  <p data-catalog-status class="text-[11px] text-slate-500 mt-1">${window.M44_DB?.cards?.length ? `Catálogo offline: ${window.M44_DB.cards.length.toLocaleString('pt-BR')} cartas` : catalogLoaded ? `Banco completo: ${allTcgCards.length.toLocaleString('pt-BR')} cartas` : 'Banco de cartas: aguardando carregamento…'}</p>
   <button type="button" data-catalog-retry class="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:border-[#004de9]">Completar banco de cartas</button>
   <div id="res-${key}" class="flex flex-wrap gap-1 mt-2">${pickRes(key, '')}</div>
   <div id="code-res-${key}" class="flex flex-col gap-1 mt-2" role="listbox" aria-label="Sugestões de cartas"></div></div>`;
@@ -1301,7 +1310,7 @@ function renderTrades() {
       act = why ? `<span class="text-xs text-slate-500">${esc(why)}</span>` : `<button data-accept="${o.id}" class="${btnCls} bg-[#004de9] text-white">Aceitar troca</button>`;
     }
     return `<div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p><p class="text-xs text-slate-500">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto text-right">${act}</div></div>`;
+      <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p>${detailsLine(o)}<p class="text-xs text-slate-500 mt-1">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto text-right">${act}</div></div>`;
   };
   // Seus próprios anúncios não aparecem aqui: ficam na aba "Minhas Cartas".
   const ordered = market.filter(o => o.owner !== user.email);
@@ -1350,13 +1359,19 @@ function renderMine() {
     const editing = editingId === o.id;
     return `<div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
       <div class="flex flex-wrap items-center gap-3">${chip(g)}
-        <div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">${esc(g.name)}</p><p class="text-xs text-slate-500">${esc(g.number || '')}${g.setName ? ' · ' + esc(g.setName) : ''}</p></div>
+        <div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">${esc(g.name)}</p><p class="text-xs text-slate-500">${esc(g.number || '')}${g.setName ? ' · ' + esc(g.setName) : ''}</p>${detailsLine(o)}</div>
         <div class="ml-auto flex gap-2">${editing
           ? `<button data-edit-cancel class="${btnCls} border border-slate-300 dark:border-slate-700">Cancelar</button>`
           : `<button data-edit="${o.id}" class="${btnCls} bg-[#004de9] text-white">Editar</button><button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover</button>`}</div>
       </div>
-      ${editing ? `<div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800"><div class="flex flex-wrap gap-5">${picker('edit', 'Nova carta deste anúncio')}</div>
-        <button data-save-edit="${o.id}" class="${btnCls} mt-4 bg-[#004de9] text-white disabled:opacity-40" ${pick.edit ? '' : 'disabled'}>Salvar alterações</button></div>` : ''}
+      ${editing ? `<div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+        <div class="grid gap-3 sm:grid-cols-3">
+          <label class="block text-sm font-semibold">Valor (R$)<input data-edit-field="price" inputmode="decimal" value="${esc(editDraft.price)}" placeholder="0,00" class="mt-1 w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-normal"></label>
+          <label class="block text-sm font-semibold">Condição<select data-edit-field="cond" class="mt-1 w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-normal"><option value="">Não informada</option>${Object.entries(COND).map(([k, v]) => `<option value="${k}" ${editDraft.cond === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+          <label class="block text-sm font-semibold sm:col-span-3">Observação (opcional)<input data-edit-field="note" maxlength="200" value="${esc(editDraft.note)}" placeholder="Ex.: pequena marca na borda, aceito troca por..." class="mt-1 w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-normal"></label>
+        </div>
+        <details class="mt-4"${pick.edit ? ' open' : ''}><summary class="cursor-pointer text-sm font-semibold">Trocar por outra carta (opcional)</summary><div class="flex flex-wrap gap-5 mt-3">${picker('edit', 'Nova carta deste anúncio')}</div></details>
+        <button data-save-edit="${o.id}" class="${btnCls} mt-4 bg-[#004de9] text-white disabled:opacity-40">Salvar alterações</button></div>` : ''}
     </div>`;
   };
   el.innerHTML = `<section>
@@ -1431,16 +1446,25 @@ async function onTradeClick(e) {
     else if (a === 'give' && !lockedIds().has(id)) pick.give = id;
     refresh();
   }
-  else if (t.dataset.edit) { editingId = t.dataset.edit; pick.edit = null; refresh(); }
+  else if (t.dataset.edit) {
+    const o = market.find(x => x.id === t.dataset.edit);
+    editingId = t.dataset.edit; pick.edit = null;
+    editDraft = { price: o && o.price != null ? String(o.price).replace('.', ',') : '', cond: o?.condition || '', note: o?.note || '' };
+    refresh();
+  }
   else if (t.hasAttribute('data-edit-cancel')) { editingId = null; pick.edit = null; refresh(); }
   else if (t.dataset.saveEdit) {
-    const id = t.dataset.saveEdit, card = pick.edit && cardOf(pick.edit);
-    if (!card) { toast('Escolha a nova carta antes de salvar.'); return; }
+    const id = t.dataset.saveEdit;
+    const raw = editDraft.price.trim().replace(/\./g, '').replace(',', '.');
+    const price = raw === '' ? null : Number(raw);
+    if (price !== null && (!Number.isFinite(price) || price < 0)) { toast('Informe um valor válido, por exemplo 25,90.'); return; }
+    const body = { price, condition: editDraft.cond, note: editDraft.note.trim() };
+    if (pick.edit) body.giveCard = cardOf(pick.edit);
     t.disabled = true; t.textContent = 'Salvando...';
     try {
-      const { offer } = await apiTrocas('PUT', { q: '?id=' + encodeURIComponent(id), body: { giveCard: card } });
+      const { offer } = await apiTrocas('PUT', { q: '?id=' + encodeURIComponent(id), body });
       const i = market.findIndex(o => o.id === id); if (i >= 0) market[i] = fromServer(offer);
-      editingId = null; pick.edit = null; toast('Carta atualizada.');
+      editingId = null; pick.edit = null; toast('Anúncio atualizado.');
     } catch (err) { toast(err.message); }
     refresh(); loadMarket();
   }
@@ -1470,6 +1494,8 @@ $('#trades').addEventListener('change', e => {
   else if (e.target.dataset.price) { setPrice(e.target.dataset.price, e.target.value); refresh(); }
 });
 function onTradeInput(e) {
+  const f = e.target.dataset.editField;
+  if (f) { editDraft[f] = e.target.value; return; }
   const k = e.target.dataset.pq;
   if (!k) return;
   const value = e.target.value;

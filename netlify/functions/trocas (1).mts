@@ -18,6 +18,15 @@ function cleanCard(c: any) {
   return card
 }
 
+// Detalhes do anúncio (guardados dentro do JSON da carta, sem mudar o schema).
+const CONDICOES = ['M', 'NM', 'SP', 'MP', 'HP', 'D']
+const cleanPrice = (v: unknown) => {
+  if (v === null || v === '' || v === undefined) return null
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 && n <= 1_000_000 ? Math.round(n * 100) / 100 : undefined
+}
+const cleanCond = (v: unknown) => (typeof v === 'string' && CONDICOES.includes(v) ? v : '')
+
 const toJson = (r: typeof tradeOffers.$inferSelect, userId?: string) => ({
   id: String(r.id), ownerName: r.ownerName, mine: !!userId && r.ownerId === userId,
   give: r.giveId, giveCard: r.giveCard, want: r.wantId, wantCard: r.wantCard, createdAt: r.createdAt,
@@ -56,16 +65,23 @@ export default async (req: Request) => {
     const id = Number(new URL(req.url).searchParams.get('id'))
     if (!Number.isInteger(id)) return Response.json({ error: 'Anúncio inválido.' }, { status: 400 })
     const body = await req.json().catch(() => null)
-    const give = cleanCard(body?.giveCard)
-    if (!give) return Response.json({ error: 'Carta inválida.' }, { status: 400 })
+    if (!body || typeof body !== 'object') return Response.json({ error: 'Dados inválidos.' }, { status: 400 })
     const [own] = await db.select().from(tradeOffers).where(and(eq(tradeOffers.id, id), eq(tradeOffers.ownerId, user.id))).limit(1)
     if (!own) return Response.json({ error: 'Anúncio não encontrado.' }, { status: 404 })
-    if (own.giveId !== give.id) {
+    const prev: any = own.giveCard || {}
+    // Carta: troca só se enviada; senão mantém a atual.
+    const base = cleanCard(body.giveCard ?? prev)
+    if (!base) return Response.json({ error: 'Carta inválida.' }, { status: 400 })
+    const price = 'price' in body ? cleanPrice(body.price) : (prev.price ?? null)
+    if (price === undefined) return Response.json({ error: 'Valor inválido.' }, { status: 400 })
+    const condition = 'condition' in body ? cleanCond(body.condition) : (prev.condition || '')
+    const note = 'note' in body ? str(body.note, 200) : (prev.note || '')
+    if (own.giveId !== base.id) {
       const dup = await db.select({ id: tradeOffers.id }).from(tradeOffers)
-        .where(and(eq(tradeOffers.ownerId, user.id), eq(tradeOffers.giveId, give.id))).limit(1)
+        .where(and(eq(tradeOffers.ownerId, user.id), eq(tradeOffers.giveId, base.id))).limit(1)
       if (dup.length) return Response.json({ error: 'Essa carta já está anunciada.' }, { status: 409 })
     }
-    const [row] = await db.update(tradeOffers).set({ giveId: give.id, giveCard: give })
+    const [row] = await db.update(tradeOffers).set({ giveId: base.id, giveCard: { ...base, price, condition, note } })
       .where(and(eq(tradeOffers.id, id), eq(tradeOffers.ownerId, user.id))).returning()
     return Response.json({ offer: toJson(row, user.id) })
   }
