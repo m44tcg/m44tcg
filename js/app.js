@@ -1374,9 +1374,16 @@ function renderMine() {
         <button data-save-edit="${o.id}" class="${btnCls} mt-4 bg-[#004de9] text-white disabled:opacity-40">Salvar alterações</button></div>` : ''}
     </div>`;
   };
+  const comPreco = mine.filter(o => typeof o.price === 'number');
+  const total = comPreco.reduce((t, o) => t + o.price, 0);
+  const resumo = mine.length ? `<div class="grid grid-cols-3 gap-2 mb-4 text-center">
+      <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"><p class="text-xl font-extrabold">${mine.length}</p><p class="text-xs text-slate-500">anúncios</p></div>
+      <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"><p class="text-xl font-extrabold text-[#004de9] dark:text-[#6e9bff]">${brl(total)}</p><p class="text-xs text-slate-500">valor anunciado</p></div>
+      <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"><p class="text-xl font-extrabold">${mine.length - comPreco.length}</p><p class="text-xs text-slate-500">sem preço</p></div></div>` : '';
   el.innerHTML = `<section>
     <h2 class="font-bold mb-1">Minhas cartas anunciadas</h2>
     <p class="text-xs text-slate-500 mb-3">Só você vê esta lista. Os outros treinadores veem seus anúncios na aba Trocas; você não os vê lá. Para anunciar uma nova carta, use a aba Trocas.</p>
+    ${resumo}
     <div class="space-y-3">${mine.map(row).join('') || '<p class="text-slate-500 py-6 text-center">Você ainda não anunciou nenhuma carta.</p>'}</div>
   </section>`;
 }
