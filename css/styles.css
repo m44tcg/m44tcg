@@ -97,3 +97,16 @@ button.bg-\[\#004de9\],button.bg-\[\#0050e6\],.bg-\[\#004de9\]{background:var(--
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;z-index:60;background:#172033;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);transition:opacity .2s,transform .2s}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .fixed.inset-0{backdrop-filter:blur(5px)}
+
+
+/* ordenação e visualização lista/grade (Trocas e Minhas Cartas) */
+.vbtn{width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:#94a3b8;color:#fff;transition:background .15s}
+.vbtn:hover{background:#64748b}.vbtn.on{background:var(--bad)}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.vgrid>div{margin:0}
+.vgrid>div.flex,.vgrid>div>.flex.flex-wrap:first-child{flex-direction:column;flex-wrap:nowrap;align-items:center;text-align:center}
+.vgrid .w-24{width:100%}.vgrid span.w-20{width:auto}
+.vgrid img.w-20{width:min(100%,150px);height:auto;aspect-ratio:63/88}
+.vgrid .ml-auto{margin-left:0;text-align:center}
+.vgrid>div:has([data-edit-field]){grid-column:1/-1}
+.vgrid>div:has([data-edit-field])>.flex.flex-wrap:first-child{flex-direction:row;flex-wrap:wrap;text-align:left}

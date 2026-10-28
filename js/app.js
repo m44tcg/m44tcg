@@ -1341,6 +1341,44 @@ const picker = (key, label) => `<div class="flex-1 min-w-[220px]">
   <div id="res-${key}" class="flex flex-wrap gap-1 mt-2">${pickRes(key, '')}</div>
   <div id="code-res-${key}" class="flex flex-col gap-1 mt-2" role="listbox" aria-label="Sugestões de cartas"></div></div>`;
 
+/* ---------- Ordenação e visualização (abas Trocas e Minhas Cartas) ---------- */
+const SORTS = {
+  'recent': 'Mais recentes',
+  'name-asc': 'Nome [A-Z]', 'name-desc': 'Nome [Z-A]',
+  'price-asc': 'Menor Preço [0-9]', 'price-desc': 'Maior Preço [9-0]',
+  'liga-asc': 'Preço Liga [0-9]', 'liga-desc': 'Preço Liga [9-0]'
+};
+const viewPref = (() => {
+  const saved = LS.get('pk-view', {}) || {};
+  const one = k => ({ sort: SORTS[saved[k]?.sort] ? saved[k].sort : 'recent', mode: saved[k]?.mode === 'grid' ? 'grid' : 'list' });
+  return { trades: one('trades'), mine: one('mine') };
+})();
+const saveView = () => LS.set('pk-view', viewPref);
+function sortOffers(list, key) {
+  const s = viewPref[key].sort;
+  if (!SORTS[s] || s === 'recent') return list;
+  const [f, dir] = s.split('-'), sign = dir === 'desc' ? -1 : 1;
+  const val = o => f === 'name' ? (cardOf(o.give)?.name || '') : f === 'price' ? o.price : priceOf(o.give);
+  return list.map((o, i) => [o, i]).sort(([a, i], [b, j]) => {
+    const x = val(a), y = val(b);
+    if (f === 'name') return sign * String(x).localeCompare(String(y), 'pt-BR', { sensitivity: 'base' }) || i - j;
+    const nx = typeof x === 'number', ny = typeof y === 'number';
+    if (!nx || !ny) return nx === ny ? i - j : nx ? -1 : 1; // sem preço sempre no fim
+    return sign * (x - y) || i - j;
+  }).map(p => p[0]);
+}
+const IC_LIST = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>';
+const IC_GRID = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>';
+const listCls = key => viewPref[key].mode === 'grid' ? 'vgrid' : 'space-y-3';
+const viewBar = key => {
+  const v = viewPref[key];
+  const vb = (m, ic, label) => `<button type="button" data-view="${key}:${m}" class="vbtn${v.mode === m ? ' on' : ''}" aria-pressed="${v.mode === m}" aria-label="${label}" title="${label}">${ic}</button>`;
+  return `<div class="flex items-center justify-end gap-2 mb-3">
+    <label for="sort-${key}" class="sr-only">Ordenar por</label>
+    <select id="sort-${key}" data-sort="${key}" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">${Object.entries(SORTS).map(([k, t]) => `<option value="${k}"${v.sort === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
+    ${vb('list', IC_LIST, 'Visualizar em lista')}${vb('grid', IC_GRID, 'Visualizar em grade')}</div>`;
+};
+
 function renderTrades() {
   const el = $('#trades');
   if (!data.length) { el.innerHTML = '<p class="py-16 text-center text-slate-500">Carregando cartas...</p>'; return; }
@@ -1362,7 +1400,7 @@ function renderTrades() {
       <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p>${detailsLine(o)}<p class="text-xs text-slate-500 mt-1">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto text-right">${act}</div></div>`;
   };
   // Seus próprios anúncios não aparecem aqui: ficam na aba "Minhas Cartas".
-  const ordered = market.filter(o => o.owner !== user.email);
+  const ordered = sortOffers(market.filter(o => o.owner !== user.email), 'trades');
   const hist = LS.get('pk-trades-' + user.email, []).slice(0, 5);
   el.innerHTML = `
     <section class="mb-6 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
@@ -1389,7 +1427,7 @@ function renderTrades() {
     <section class="mb-6">
       <div class="flex items-center justify-between mb-2"><h2 class="font-bold">Ofertas abertas</h2></div>
       <p class="text-xs text-slate-500 mb-3">Veja as cartas anunciadas pelos treinadores. Anúncios com uma única carta indicam o que a pessoa quer trocar.</p>
-      <div class="space-y-3">${ordered.map(offer).join('') || '<p class="text-slate-500 py-6 text-center">Nenhuma oferta de outros treinadores no momento.</p>'}</div>
+      ${viewBar('trades')}<div class="${listCls('trades')}">${ordered.map(offer).join('') || '<p class="text-slate-500 py-6 text-center">Nenhuma oferta de outros treinadores no momento.</p>'}</div>
     </section>
     <section><h2 class="font-bold mb-2">Minhas trocas recentes</h2>
       ${hist.length ? hist.map(h => `<p class="text-sm text-slate-600 dark:text-slate-400">Você deu ${esc(cardOf(h.give).name)} e recebeu ${esc(cardOf(h.get).name)} de ${esc(h.with)}.</p>`).join('') : '<p class="text-sm text-slate-500">Nenhuma troca concluída.</p>'}
@@ -1401,7 +1439,7 @@ function renderMine() {
   const el = $('#mine');
   if (!user) { el.innerHTML = '<p class="py-16 text-center text-slate-500">Entre com sua conta para ver e editar suas cartas.</p>'; return; }
   if (!data.length) { el.innerHTML = '<p class="py-16 text-center text-slate-500">Carregando cartas...</p>'; return; }
-  const mine = market.filter(o => o.owner === user.email);
+  const mine = sortOffers(market.filter(o => o.owner === user.email), 'mine');
   const row = o => {
     const g = cardOf(o.give);
     if (!g) return '';
@@ -1433,7 +1471,7 @@ function renderMine() {
     <h2 class="font-bold mb-1">Minhas cartas anunciadas</h2>
     <p class="text-xs text-slate-500 mb-3">Só você vê esta lista. Os outros treinadores veem seus anúncios na aba Trocas; você não os vê lá. Para anunciar uma nova carta, use a aba Trocas.</p>
     ${resumo}
-    <div class="space-y-3">${mine.map(row).join('') || '<p class="text-slate-500 py-6 text-center">Você ainda não anunciou nenhuma carta.</p>'}</div>
+    ${mine.length > 1 ? viewBar('mine') : ''}<div class="${listCls('mine')}">${mine.map(row).join('') || '<p class="text-slate-500 py-6 text-center">Você ainda não anunciou nenhuma carta.</p>'}</div>
   </section>`;
 }
 
@@ -1579,6 +1617,21 @@ function onTradeInput(e) {
 }
 $('#trades').addEventListener('input', onTradeInput);
 $('#mine').addEventListener('input', onTradeInput);
+function onViewClick(e) {
+  const b = e.target.closest('[data-view]');
+  if (!b) return;
+  const [k, m] = b.dataset.view.split(':');
+  if (!viewPref[k] || viewPref[k].mode === m) return;
+  viewPref[k].mode = m; saveView();
+  k === 'mine' ? renderMine() : renderTrades();
+}
+function onSortChange(e) {
+  const k = e.target.dataset.sort;
+  if (!k || !viewPref[k] || !SORTS[e.target.value]) return;
+  viewPref[k].sort = e.target.value; saveView();
+  k === 'mine' ? renderMine() : renderTrades();
+}
+for (const id of ['#trades', '#mine']) { $(id).addEventListener('click', onViewClick); $(id).addEventListener('change', onSortChange); }
 
 addEventListener('storage', e => { if (e.key && /^pk-(col|sets|expcards)-/.test(e.key)) { loadCol(); render(); } });
 loadCol();
