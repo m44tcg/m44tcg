@@ -12,6 +12,7 @@ const GENS = [
 const MAX_ID = GENS[GENS.length - 1].end;
 const ART = id => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
 const $ = s => document.querySelector(s);
+const HQ = $('#hq') || document.createElement('input'); // barra de pesquisa do cabeçalho removida: input solto evita erros
 const LS = {
   get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { toast('Armazenamento cheio: exporte um backup para não perder dados.'); return false; } }
@@ -396,7 +397,7 @@ $('#gens').addEventListener('toggle', e => {
   const g = +e.target.dataset?.gen;
   if (g) e.target.open ? openGens.add(g) : openGens.delete(g);
 }, true);
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; $('#hq').value = ''; searchQ = ''; render(); });
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; HQ.value = ''; searchQ = ''; render(); });
 $('#q').oninput = debounce(e => { query = e.target.value; render(); });
 $('#status-sel').onchange = e => { statusSel = e.target.value; render(); };
 $('#gen-sel').onchange = e => { seriesSel = e.target.value; render(); };
@@ -804,18 +805,18 @@ $('#search').addEventListener('click', e => {
   if (t.dataset.add) { if (addToCart(t.dataset.add)) toast('Adicionado ao carrinho.'); return; }
   if (t.dataset.set) return openSetCards(t.dataset.set, t.dataset.name);
   if (t.dataset.more) { searchMore += 48; return drawSearch(); }
-  if (t.dataset.q) { searchQ = t.dataset.q; $('#hq').value = searchQ; return drawSearch(); }
+  if (t.dataset.q) { searchQ = t.dataset.q; HQ.value = searchQ; return drawSearch(); }
 });
 
 let prevTab = 'store';
-$('#hq').addEventListener('input', debounce(e => {
+HQ.addEventListener('input', debounce(e => {
   searchQ = e.target.value; searchMore = 48;
   const has = searchQ.trim().length > 0;
   if (has && tab !== 'search') { prevTab = tab; tab = 'search'; render(); scrollTo({ top: 0 }); }
   else if (!has && tab === 'search') { tab = prevTab; render(); }
   else if (tab === 'search') drawSearch();
 }, 200));
-$('#hq').addEventListener('keydown', e => { if (e.key === 'Escape') { e.target.value = ''; e.target.dispatchEvent(new Event('input')); e.target.blur(); } });
+HQ.addEventListener('keydown', e => { if (e.key === 'Escape') { e.target.value = ''; e.target.dispatchEvent(new Event('input')); e.target.blur(); } });
 /* ---------- Detalhes do produto ---------- */
 let prodId = null, prodQty = 1;
 function addToCart(id, n = 1) {
@@ -910,7 +911,7 @@ $('#cart-modal').addEventListener('click', e => {
   if (d.crm) { delete cart[d.crm]; saveCart(); if (tab === 'store') renderStore(); return; }
   if (d.cprod) { closeCart(); return openProduct(d.cprod); }
   if (d.cact === 'close') return closeCart();
-  if (d.cact === 'shop') { closeCart(); if (tab !== 'store') { tab = 'store'; $('#hq').value = ''; searchQ = ''; render(); } return $('#store-produtos')?.scrollIntoView({ behavior: 'smooth' }); }
+  if (d.cact === 'shop') { closeCart(); if (tab !== 'store') { tab = 'store'; HQ.value = ''; searchQ = ''; render(); } return $('#store-produtos')?.scrollIntoView({ behavior: 'smooth' }); }
   if (d.cact === 'clear') { if (confirm('Esvaziar o carrinho?')) { cart = {}; saveCart(); if (tab === 'store') renderStore(); } return; }
   if (d.cact === 'checkout') {
     if (WHATSAPP.includes('X')) return alert('Defina o número de WhatsApp da loja.');
