@@ -110,3 +110,6 @@ button.bg-\[\#004de9\],button.bg-\[\#0050e6\],.bg-\[\#004de9\]{background:var(--
 .vgrid .ml-auto{margin-left:0;text-align:center}
 .vgrid>div:has([data-edit-field]){grid-column:1/-1}
 .vgrid>div:has([data-edit-field])>.flex.flex-wrap:first-child{flex-direction:row;flex-wrap:wrap;text-align:left}
+
+/* barra de pesquisa do cabeçalho removida */
+.searchbar{display:none!important}

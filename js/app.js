@@ -13,6 +13,7 @@ const MAX_ID = GENS[GENS.length - 1].end;
 const ART = id => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
 const $ = s => document.querySelector(s);
 const HQ = $('#hq') || document.createElement('input'); // barra de pesquisa do cabeçalho removida: input solto evita erros
+$('.searchbar')?.remove(); // garante a remoção mesmo se o index.html antigo ainda estiver publicado
 const LS = {
   get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { toast('Armazenamento cheio: exporte um backup para não perder dados.'); return false; } }
