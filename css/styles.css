@@ -141,3 +141,34 @@ button.bg-\[\#004de9\],button.bg-\[\#0050e6\],.bg-\[\#004de9\]{background:var(--
   .bnav #bn-badge{position:absolute;top:2px;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--blue);color:#fff;font:700 10px/16px var(--f-body);text-align:center;place-items:center}
   #toast{bottom:84px}
 }
+
+/* ===== refresh estético (inspirado em TCG Campina e Cartinha) =====
+   PALETA: gradiente azul da M44 -> violeta. Para voltar ao azul puro, troque --violet por #1556ff.
+   Para tema todo violeta (como o TCG Campina), troque também --blue e --blue2 por #7c3aed e #8b5cf6. */
+:root{--violet:#7c3aed;--grad:linear-gradient(135deg,var(--blue),var(--violet));--shadow:0 10px 30px rgba(20,32,61,.08)}
+.dark{--shadow:0 14px 36px rgba(0,0,0,.4)}
+body{background:radial-gradient(800px 460px at 88% -150px,rgba(124,58,237,.16),transparent 70%),radial-gradient(1100px 520px at 10% -120px,var(--bg2),var(--bg) 70%) fixed,var(--bg)!important}
+.promo-strip{background:var(--grad)}
+.tab.is-active{background:var(--grad);color:#fff}
+.btn-buy,.btn-login{background:var(--grad)}
+.btn-buy:hover:not(:disabled),.btn-login:hover{background:var(--grad);filter:brightness(1.1)}
+.btn-buy:disabled{background:#2a3558}
+#store button[data-cat].bg-\[\#0050e6\]{background:var(--grad)!important}
+#store button[data-cat]{transition:transform .15s}#store button[data-cat]:hover{transform:translateY(-1px)}
+#store h2:not(.hero__title){display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:clamp(22px,3vw,30px);line-height:1.1;text-transform:uppercase;letter-spacing:.01em}
+#store h2:not(.hero__title)::before,.shelf__title::before{content:"";width:6px;height:.9em;border-radius:4px;background:var(--grad);flex:none}
+.shelf__title{display:flex;align-items:center;gap:10px}
+.hero__title em{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pill{border-color:rgba(124,58,237,.45);background:rgba(124,58,237,.12);color:#a78bfa}
+.reel__glow--b{background:radial-gradient(circle,rgba(124,58,237,.45),transparent 65%)}
+.pcard{border-radius:22px;box-shadow:var(--shadow)}
+.pcard:hover{transform:translateY(-5px);border-color:var(--violet);box-shadow:0 18px 40px rgba(124,58,237,.2)}
+.pcard__img{background:radial-gradient(circle at 50% 28%,rgba(124,58,237,.16),var(--bg2) 72%)}
+.pcard__img img:not(.pcard__ph){transition:transform .3s}.pcard:hover .pcard__img img:not(.pcard__ph){transform:scale(1.04)}
+.tag{backdrop-filter:blur(6px)}
+.price{color:var(--text)}.dark .price{color:var(--accent)}
+.shelf__more{color:var(--violet)}.dark .shelf__more{color:#a78bfa}
+.site-foot{border-top:3px solid transparent;border-image:var(--grad) 1}
+#progress,#toolbar{box-shadow:var(--shadow)}
+.slot.on{border-color:var(--violet)!important;box-shadow:0 0 0 2px var(--violet)!important}
+.vbtn.on{background:var(--violet)}
