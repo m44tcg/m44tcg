@@ -22,6 +22,9 @@
   let picked = null;       // carta escolhida no autocomplete
   let formType = 'have';
   let timer = null;
+  let setId = '';          // id da expansão escolhida no autocomplete
+  let sets = null;         // cache da lista de expansões
+  let token = 0;           // descarta respostas antigas da busca
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { return fresh(); } }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { toast('Não foi possível salvar neste navegador.'); } }
@@ -112,11 +115,12 @@
           <button type="button" data-cat="type" data-type="want" class="px-4 py-2 text-sm font-semibold">Procuro</button>
         </div>
         <div class="relative">
-          <input id="cat-name" class="${inputCls} w-full" placeholder="Nome da carta (ex.: Charizard ex)" maxlength="80" required aria-label="Nome da carta">
+          <input id="cat-name" class="${inputCls} w-full" placeholder="Nome ou número da carta (ex.: Charizard ex ou 125)" maxlength="80" required aria-label="Nome da carta">
           <ul id="cat-sugg" class="hidden absolute z-20 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"></ul>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-6 gap-2">
-          <input id="cat-set" class="${inputCls} sm:col-span-2" placeholder="Expansão" maxlength="60" aria-label="Expansão">
+          <div class="relative col-span-2"><input id="cat-set" class="${inputCls} w-full" placeholder="Expansão (ex.: Obsidian Flames)" maxlength="60" aria-label="Expansão">
+            <ul id="cat-setsugg" class="hidden absolute z-20 left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"></ul></div>
           <input id="cat-num" class="${inputCls}" placeholder="Nº" maxlength="12" aria-label="Número">
           <input id="cat-qty" class="${inputCls}" type="number" min="1" max="999" value="1" aria-label="Quantidade">
           <select id="cat-cond" class="${inputCls}" aria-label="Condição"><option value="">Condição</option>${CONDS.map(c => `<option>${c}</option>`).join('')}</select>
@@ -150,27 +154,71 @@
   }
   const render = () => shared ? renderShared() : renderMine();
 
-  // ---------- autocomplete ----------
-  async function suggest(q) {
-    const ul = $('#cat-sugg'); if (!ul) return;
-    if (q.length < 3) { ul.classList.add('hidden'); return; }
+  // ---------- autocomplete (nome, número e expansão) ----------
+  const norm = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const clean = x => String(x).replace(/["\\]/g, '');
+  const API = 'https://api.pokemontcg.io/v2/';
+
+  async function loadSets() {
+    if (sets) return sets;
     try {
-      const url = 'https://api.pokemontcg.io/v2/cards?pageSize=8&orderBy=-set.releaseDate&select=id,name,number,set,images&q=' + encodeURIComponent(`name:"${q.replace(/"/g, '')}*"`);
-      const r = await fetch(url); if (!r.ok) throw 0;
-      const { data: cards } = await r.json();
-      if (!cards.length) { ul.classList.add('hidden'); return; }
-      ul.innerHTML = cards.map((c, n) => `<li><button type="button" data-cat="pick" data-n="${n}" class="w-full flex items-center gap-2 p-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800">
-        <img src="${esc(c.images?.small)}" alt="" class="w-9 h-12 object-contain"><span class="text-sm"><strong>${esc(c.name)}</strong><br><span class="text-xs text-slate-500">${esc(c.set?.name)} · #${esc(c.number)}</span></span></button></li>`).join('');
-      ul._cards = cards; ul.classList.remove('hidden');
-    } catch { ul.classList.add('hidden'); /* sem API: o usuário digita manualmente */ }
+      const r = await fetch(API + 'sets?select=id,name,series,releaseDate&orderBy=-releaseDate&pageSize=250');
+      sets = (await r.json()).data || [];
+    } catch { sets = []; }
+    return sets;
+  }
+  async function suggestSets(q) {
+    const ul = $('#cat-setsugg'); if (!ul) return;
+    const all = await loadSets(), n = norm(q);
+    const hits = (n ? all.filter(x => norm(x.name).includes(n) || norm(x.series).includes(n) || norm(x.id) === n) : all).slice(0, 8);
+    if (!hits.length) { ul.classList.add('hidden'); return; }
+    ul._sets = hits;
+    ul.innerHTML = hits.map((x, k) => `<li><button type="button" data-cat="pickset" data-n="${k}" class="w-full text-left p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm"><strong>${esc(x.name)}</strong><br><span class="text-xs text-slate-500">${esc(x.series)} · ${esc((x.releaseDate || '').slice(0, 4))} · ${esc(x.id)}</span></button></li>`).join('');
+    ul.classList.remove('hidden');
+  }
+
+  // Ponto de ligação com o banco do site: defina window.M44_searchCards({name, number, setId, setName})
+  // retornando (ou resolvendo) uma lista de { name, number, set, setId, img }. Esses itens aparecem primeiro.
+  async function searchCards() {
+    const ul = $('#cat-sugg'); if (!ul) return;
+    let name = $('#cat-name').value.trim();
+    let number = $('#cat-num').value.trim();
+    const setName = $('#cat-set').value.trim();
+    if (!number && /^\d+(\s*\/\s*\d+)?$/.test(name)) { number = name; name = ''; }   // só dígitos no nome = número
+    number = number.replace(/\s*\/.*$/, '').replace(/^0+(?=\d)/, '');
+    if (name.length < 2 && !number && !setId) { ul.classList.add('hidden'); return; }
+    const my = ++token, out = [];
+    if (typeof window.M44_searchCards === 'function') {
+      try { (await window.M44_searchCards({ name, number, setId, setName }) || []).slice(0, 8).forEach(c => out.push({ ...c, src: 'db' })); } catch { /* segue só com a API */ }
+    }
+    try {
+      const q = [];
+      if (name) q.push(`name:"${clean(name)}*"`);
+      if (number) q.push(`number:"${clean(number)}"`);
+      if (setId) q.push(`set.id:"${clean(setId)}"`); else if (setName) q.push(`set.name:"${clean(setName)}*"`);
+      if (q.length) {
+        const r = await fetch(API + 'cards?pageSize=12&select=id,name,number,set,images&q=' + encodeURIComponent(q.join(' ')));
+        if (r.ok) (await r.json()).data.forEach(c => out.push({ name: c.name, number: c.number, set: c.set?.name || '', setId: c.set?.id || '', img: c.images?.small || '', src: 'api' }));
+      }
+    } catch { /* sem API: o usuário digita manualmente */ }
+    if (my !== token) return;
+    const seen = new Set(), list = out.filter(c => { const k = norm(c.name) + '|' + norm(c.set) + '|' + c.number; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
+    if (!list.length) { ul.classList.add('hidden'); return; }
+    ul._cards = list;
+    ul.innerHTML = list.map((c, k) => `<li><button type="button" data-cat="pick" data-n="${k}" class="w-full flex items-center gap-2 p-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800">
+      ${c.img ? `<img src="${esc(c.img)}" alt="" class="w-9 h-12 object-contain">` : '<span class="w-9 h-12 grid place-items-center">🃏</span>'}
+      <span class="text-sm"><strong>${esc(c.name)}</strong>${c.src === 'db' ? ' <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">no banco</span>' : ''}<br><span class="text-xs text-slate-500">${esc(c.set)} · #${esc(c.number)}</span></span></button></li>`).join('');
+    ul.classList.remove('hidden');
   }
 
   // ---------- eventos ----------
   root.addEventListener('input', e => {
     if (e.target.id === 'cat-owner') { data.owner = e.target.value.trim(); save(); }
     else if (e.target.id === 'cat-phone') { data.phone = e.target.value.trim(); save(); }
-    else if (e.target.id === 'cat-name') { picked = null; clearTimeout(timer); timer = setTimeout(() => suggest(e.target.value.trim()), 350); }
+    else if (e.target.id === 'cat-name' || e.target.id === 'cat-num') { picked = null; clearTimeout(timer); timer = setTimeout(searchCards, 350); }
+    else if (e.target.id === 'cat-set') { setId = ''; picked = null; suggestSets(e.target.value.trim()); }
   });
+  root.addEventListener('focusin', e => { if (e.target.id === 'cat-set') suggestSets(e.target.value.trim()); });
   root.addEventListener('submit', e => {
     if (e.target.id !== 'cat-form') return;
     e.preventDefault();
@@ -183,7 +231,7 @@
       mode: $('#cat-mode').value, price: $('#cat-price').value, note: $('#cat-note').value.trim()
     });
     save(); picked = null;
-    ['name', 'set', 'num', 'price', 'note'].forEach(k => $('#cat-' + k).value = '');
+    ['name', 'num', 'price', 'note'].forEach(k => $('#cat-' + k).value = '');   // mantém a expansão p/ cadastrar várias da mesma
     $('#cat-qty').value = 1; $('#cat-sugg').classList.add('hidden');
     refreshLists(); toast('Carta adicionada!');
   });
@@ -193,8 +241,13 @@
     if (act === 'type') { formType = b.dataset.type; syncForm(); }
     else if (act === 'pick') {
       const c = $('#cat-sugg')._cards[+b.dataset.n];
-      $('#cat-name').value = c.name; $('#cat-set').value = c.set?.name || ''; $('#cat-num').value = c.number || '';
-      picked = { img: c.images?.small || '' }; $('#cat-sugg').classList.add('hidden');
+      $('#cat-name').value = c.name; $('#cat-set').value = c.set || ''; $('#cat-num').value = c.number || '';
+      setId = c.setId || ''; picked = { img: c.img || '' }; $('#cat-sugg').classList.add('hidden');
+    }
+    else if (act === 'pickset') {
+      const x = $('#cat-setsugg')._sets[+b.dataset.n];
+      $('#cat-set').value = x.name; setId = x.id; $('#cat-setsugg').classList.add('hidden');
+      searchCards();   // já lista as cartas da expansão escolhida
     }
     else if (act === 'del') { data.items = data.items.filter(i => i.id !== b.dataset.id); save(); refreshLists(); }
     else if (act === 'copy') { await copy(shareUrl()); toast('Link copiado!'); }
@@ -203,7 +256,10 @@
     else if (act === 'clear') { if (confirm('Apagar todo o seu catálogo?')) { data = fresh(); save(); render(); } }
     else if (act === 'mine') { shared = null; history.replaceState(null, '', location.pathname); render(); }
   });
-  document.addEventListener('click', e => { if (!e.target.closest('#cat-name,#cat-sugg')) $('#cat-sugg')?.classList.add('hidden'); });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#cat-name,#cat-num,#cat-sugg')) $('#cat-sugg')?.classList.add('hidden');
+    if (!e.target.closest('#cat-set,#cat-setsugg')) $('#cat-setsugg')?.classList.add('hidden');
+  });
   async function copy(t) { try { await navigator.clipboard.writeText(t); } catch { const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); } }
 
   // ---------- integração com as abas existentes ----------
