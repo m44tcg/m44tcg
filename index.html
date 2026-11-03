@@ -30,6 +30,7 @@
     <nav class="site-nav" role="tablist" aria-label="Seções">
       <button data-tab="store" role="tab" class="tab">Loja</button>
       <button data-tab="trades" role="tab" class="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>Trocas</button>
+      <button data-tab="catalog" role="tab" class="tab">Meu Catálogo</button>
       <button data-tab="mine" role="tab" class="tab" style="display:none">Minhas Cartas</button>
       <button data-tab="chat" role="tab" class="tab" style="display:none">Minhas Conversas<span id="chat-badge" class="ml-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#004de9] text-white text-[10px] font-bold place-items-center" style="display:none">0</span></button>
       <button data-tab="all" role="tab" class="tab">Minha Coleção</button>
@@ -67,6 +68,7 @@
   <div id="store" class="hidden"></div>
   <div id="search" class="hidden"></div>
   <div id="trades" class="hidden"></div>
+  <div id="catalog" class="hidden"></div>
   <div id="mine" class="hidden"></div>
   <div id="chat" class="hidden"></div>
 </main>
@@ -81,6 +83,7 @@
 <nav class="bnav" aria-label="Navegação principal">
   <button data-tab="store" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l1.5-5h15L21 10M4 10v10h16V10M3 10h18M9 20v-5h6v5"/></svg><span>Loja</span></button>
   <button data-tab="trades" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg><span>Trocas</span></button>
+  <button data-tab="catalog" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Catálogo</span></button>
   <button data-tab="all" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><span>Coleção</span></button>
   <button id="bn-cart" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11L21 7H6"/></svg><span>Carrinho</span><b id="bn-badge" style="display:none">0</b></button>
 </nav>
@@ -110,5 +113,6 @@
 <script src="assets/cartas/lista.js"></script>
 <script src="js/app.js?v=6"></script>
 <script src="js/chat.js?v=3"></script>
+<script src="js/catalogo.js?v=1"></script>
 </body>
 </html>
