@@ -462,13 +462,44 @@
     const pages = [];
     ['have', 'want'].forEach(type => { const its = d.items.filter(i => i.type === type); for (let k = 0; k < its.length; k += PER) pages.push({ type, its: its.slice(k, k + PER) }); });
     const slug = normTxt(d.name && d.name !== 'Meu catálogo' ? d.name : d.owner).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'colecionador';
+    const files = [];
     for (let k = 0; k < pages.length; k++) {
       const blob = await drawPage(d, pages[k], k + 1, pages.length, imgs);
       if (!blob) { toast('Não foi possível gerar a imagem neste navegador.'); return; }
-      download(blob, `catalogo-m44-${slug}-${pages[k].type === 'have' ? 'tenho' : 'procuro'}-${k + 1}.jpg`);
-      await new Promise(r => setTimeout(r, 400));   // evita o bloqueio de downloads múltiplos
+      files.push(new File([blob], `catalogo-m44-${slug}-${pages[k].type === 'have' ? 'tenho' : 'procuro'}-${k + 1}.jpg`, { type: 'image/jpeg' }));
     }
-    toast(pages.length > 1 ? `${pages.length} imagens baixadas!` : 'Imagem baixada!');
+    // Celular: abre o menu de compartilhar (iPhone: "Salvar imagem"; Android: Galeria/Fotos).
+    if (canShareFiles(files)) { await askSave(files); return; }
+    await downloadAll(files);
+  }
+  async function downloadAll(files) {
+    for (const f of files) { download(f, f.name); await new Promise(r => setTimeout(r, 400)); }   // evita o bloqueio de downloads múltiplos
+    toast(files.length > 1 ? `${files.length} imagens baixadas!` : 'Imagem baixada!');
+  }
+  // O menu de compartilhar só abre a partir de um toque do usuário; como gerar as imagens demora,
+  // mostramos um aviso com o botão "Salvar na galeria" para esse novo toque.
+  const canShareFiles = files => !!(navigator.canShare && matchMedia('(pointer: coarse)').matches && navigator.canShare({ files }));
+  function askSave(files) {
+    return new Promise(done => {
+      const o = document.createElement('div');
+      o.className = 'fixed inset-0 z-[70] grid place-items-center bg-slate-950/80 p-4';
+      o.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Imagens prontas" class="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 p-5 text-center space-y-3">
+        <h3 class="text-lg font-extrabold">Imagens prontas!</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400">${files.length} imagem(ns) do catálogo. Toque no botão e escolha <strong>Salvar imagem</strong> (iPhone) ou <strong>Galeria / Fotos</strong> (Android).</p>
+        <button type="button" data-s="share" class="w-full px-4 py-3 rounded-lg bg-[#004de9] text-white font-bold">Salvar na galeria</button>
+        <button type="button" data-s="dl" class="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold">Baixar arquivos</button>
+        <button type="button" data-s="close" class="text-sm underline text-slate-500">Fechar</button></div>`;
+      const close = () => { o.remove(); done(); };
+      o.addEventListener('click', async e => {
+        const act = e.target.closest('[data-s]')?.dataset.s;
+        if (!act) { if (e.target === o) close(); return; }
+        if (act === 'close') return close();
+        if (act === 'dl') { close(); return downloadAll(files); }
+        try { await navigator.share({ files, title: 'Catálogo M44 TCG' }); close(); }
+        catch (err) { if (err.name !== 'AbortError') { close(); toast('Não foi possível abrir o compartilhamento. Baixando os arquivos...'); downloadAll(files); } }
+      });
+      document.body.appendChild(o);
+    });
   }
 
   // ---------- Minha Coleção: botões "Procuro" e "Vendo/Troco" nas cartas da expansão ----------
