@@ -372,10 +372,14 @@
     im.onload = () => res(im); im.onerror = () => res(null); im.src = src;
     setTimeout(() => res(null), 8000);
   });
-  // tenta direto; se a origem não liberar CORS, usa o repasse /img-carta (netlify/functions/img-carta.mjs)
+  // Para desenhar no canvas e gerar o JPG, a imagem precisa vir com CORS liberado.
+  // images.pokemontcg.io nem sempre libera, então usamos primeiro o repasse do próprio site
+  // (/img-carta → netlify/functions/img-carta.mts) e, se ele falhar, tentamos direto.
+  const HOST_OK = /^https:\/\/(images\.pokemontcg\.io|images\.scrydex\.com)\//;
   async function loadImg(src) {
     if (!src) return null;
-    return (await tryLoad(src)) || (/^https:\/\/images\.pokemontcg\.io\//.test(src) ? await tryLoad('/img-carta?u=' + encodeURIComponent(src)) : null);
+    if (HOST_OK.test(src)) return (await tryLoad('/img-carta?u=' + encodeURIComponent(src))) || (await tryLoad(src));
+    return tryLoad(src);
   }
   // carta sem foto salva (digitada à mão): procura a imagem na base pelo nome/número/expansão
   const imgCache = new Map();
