@@ -54,6 +54,10 @@
   </section>
 
   <section id="toolbar" class="flex flex-wrap gap-2 mb-5">
+    <form id="pk-form" class="flex gap-2 w-full" role="search" aria-label="Buscar Pokémon em todas as expansões">
+      <input id="pk-q" type="search" placeholder="Buscar Pokémon pelo nome (ex.: Pikachu) em todas as expansões e promos" class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004de9]" aria-label="Nome do Pokémon">
+      <button class="px-4 py-2 rounded-lg bg-[#004de9] text-white font-bold">Buscar</button>
+    </form>
     <input id="q" type="search" placeholder="Buscar expansão pelo nome" class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004de9]">
     <select id="status-sel" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
       <option value="all">Todas as cartas</option><option value="have">Só as que tenho</option><option value="miss">Só as que faltam</option>
@@ -113,6 +117,7 @@
 <script src="assets/cartas/lista.js"></script>
 <script src="js/app.js?v=6"></script>
 <script src="js/chat.js?v=3"></script>
-<script src="js/catalogo.js?v=1"></script>
+<script src="js/catalogo.js?v=2"></script>
+<script src="js/busca-pokemon.js?v=1"></script>
 </body>
 </html>
