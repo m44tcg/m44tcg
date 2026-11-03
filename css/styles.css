@@ -113,3 +113,31 @@ button.bg-\[\#004de9\],button.bg-\[\#0050e6\],.bg-\[\#004de9\]{background:var(--
 
 /* barra de pesquisa do cabeçalho removida */
 .searchbar{display:none!important}
+
+
+/* ===== novo layout: faixa de avisos, prateleiras, rodapé e menu inferior ===== */
+.promo-strip{display:flex;justify-content:center;gap:10px 28px;flex-wrap:wrap;padding:8px 14px;background:var(--blue);color:#fff;font:600 13px var(--f-body);text-align:center}
+.promo-strip span+span::before{content:"•";margin-right:28px;opacity:.6}
+@media(max-width:720px){.promo-strip{font-size:12px;gap:2px 14px}.promo-strip span+span::before{margin-right:14px}.promo-strip span:nth-child(3){display:none}}
+.shelf{margin-bottom:30px}
+.shelf__head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.shelf__title{margin:0;font:800 clamp(22px,3vw,30px)/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.01em}
+.shelf__more{font-weight:700;font-size:14px;color:var(--blue2);padding:6px 10px;border-radius:10px}
+.shelf__more:hover{background:rgba(120,150,255,.14)}
+.site-foot{margin-top:40px;border-top:1px solid var(--line);background:var(--hdr)}
+.site-foot__in{max-width:1240px;margin:0 auto;padding:26px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px}
+.site-foot__in p{margin:6px 0 0;max-width:420px;color:var(--muted);font-size:14px}
+.site-foot nav{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:flex-start;font-weight:600}
+.site-foot nav a{color:var(--text);opacity:.85}.site-foot nav a:hover{opacity:1;color:var(--blue2)}
+.site-foot__copy{margin:0;padding:12px 20px 20px;text-align:center;color:var(--muted);font-size:12px}
+.bnav{display:none}
+@media(max-width:720px){
+  body{padding-bottom:68px}
+  .site-nav{display:none}
+  .bnav{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(4,1fr);background:var(--hdr);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  .bnav button{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:12px;font:600 11px var(--f-body);color:var(--text);opacity:.8;background:none}
+  .bnav button svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .bnav button.is-active{opacity:1;color:var(--blue2);background:rgba(47,109,255,.14)}
+  .bnav #bn-badge{position:absolute;top:2px;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--blue);color:#fff;font:700 10px/16px var(--f-body);text-align:center;place-items:center}
+  #toast{bottom:84px}
+}

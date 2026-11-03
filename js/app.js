@@ -576,18 +576,7 @@ let cart = LS.get('pk-cart', {}), storeCat = 'Todos';
 const brl = n => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const saveCart = () => { LS.set('pk-cart', cart); updateCartBadge(); if (!$('#cart-modal').classList.contains('hidden')) drawCart(); };
 
-function renderStore() {
-  const cats = ['Todos', ...new Set(PRODUCTS.map(p => p.cat))];
-  const items = PRODUCTS.filter(p => storeCat === 'Todos' || p.cat === storeCat);
-  const lines = PRODUCTS.filter(p => cart[p.id]);
-  const total = lines.reduce((n, p) => n + p.preco * cart[p.id], 0);
-  const qtyBtn = 'h-8 w-8 rounded-lg border border-slate-300 dark:border-slate-700 font-bold';
-  $('#store').innerHTML = adminBarHTML() + homeHTML() + `
-    <h2 id="store-produtos" class="text-lg font-bold mb-3 scroll-mt-32">Todos os produtos</h2>
-    <div class="flex flex-wrap gap-2 mb-5">${cats.map(c => `<button data-cat="${c}" class="px-3 py-1.5 rounded-full text-sm font-semibold border ${c === storeCat ? 'bg-[#0050e6] text-white border-transparent' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'}">${c}</button>`).join('')}</div>
-    <div class="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
-      <div class="pgrid">
-        ${items.map(p => { const out = p.estoque === 0, low = p.estoque > 0 && p.estoque <= 3, diff = p.liga > p.preco ? p.liga - p.preco : 0;
+const pcardHTML = p => { const out = p.estoque === 0, low = p.estoque > 0 && p.estoque <= 3, diff = p.liga > p.preco ? p.liga - p.preco : 0;
           return `<article class="pcard" data-prod="${esc(p.id)}" tabindex="0" aria-label="Ver detalhes de ${esc(p.nome)}">
           <div class="pcard__img">${p.img ? `<img src="${p.img}" alt="${esc(p.nome)}" loading="lazy">` : `<img class="pcard__ph" src="${$('#logo').src}" alt="">`}
             ${p.cond ? `<span class="tag tag--cond">${esc(p.cond)}</span>` : ''}
@@ -598,8 +587,24 @@ function renderStore() {
             ${p.liga > 0 ? `<p class="pcard__liga">Liga: ${brl(p.liga)}${diff ? ` <span class="down">▼ ${brl(diff)}</span>` : ''}</p>` : ''}
             <p class="price">${brl(p.preco)}${p.antes ? `<s>${brl(p.antes)}</s>` : ''}</p>
             <button class="btn-buy" data-add="${p.id}" ${out ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11L21 7H6"/></svg>${out ? 'Esgotado' : 'Comprar'}</button>
-          </div></article>`; }).join('')}
-      </div>
+          </div></article>`; };
+const shelvesHTML = cats => cats.filter(c => c !== 'Todos').map(c => {
+  const its = PRODUCTS.filter(p => p.cat === c);
+  if (!its.length) return '';
+  return `<section class="shelf" aria-label="${esc(c)}"><div class="shelf__head"><h3 class="shelf__title">${esc(c)}</h3>${its.length > 4 ? `<button type="button" data-cat="${esc(c)}" class="shelf__more">Ver tudo (${its.length}) →</button>` : ''}</div><div class="pgrid">${its.slice(0, 4).map(pcardHTML).join('')}</div></section>`;
+}).join('');
+
+function renderStore() {
+  const cats = ['Todos', ...new Set(PRODUCTS.map(p => p.cat))];
+  const items = PRODUCTS.filter(p => storeCat === 'Todos' || p.cat === storeCat);
+  const lines = PRODUCTS.filter(p => cart[p.id]);
+  const total = lines.reduce((n, p) => n + p.preco * cart[p.id], 0);
+  const qtyBtn = 'h-8 w-8 rounded-lg border border-slate-300 dark:border-slate-700 font-bold';
+  $('#store').innerHTML = adminBarHTML() + homeHTML() + `
+    <h2 id="store-produtos" class="text-lg font-bold mb-3 scroll-mt-32">Todos os produtos</h2>
+    <div class="flex flex-wrap gap-2 mb-5">${cats.map(c => `<button data-cat="${c}" class="px-3 py-1.5 rounded-full text-sm font-semibold border ${c === storeCat ? 'bg-[#0050e6] text-white border-transparent' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'}">${c}</button>`).join('')}</div>
+    <div class="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
+      <div>${storeCat === 'Todos' && cats.length > 2 ? shelvesHTML(cats) : `<div class="pgrid">${items.map(pcardHTML).join('')}</div>`}</div>
       <aside class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 lg:sticky lg:top-28">
         <h2 class="font-bold mb-3">Seu carrinho</h2>
         ${lines.length ? lines.map(p => `<div class="flex items-center gap-2 mb-2 text-sm">
@@ -632,7 +637,7 @@ $('#store').addEventListener('click', e => {
     if (WHATSAPP.includes('X')) return alert('Defina o número de WhatsApp da loja na constante WHATSAPP do código.');
     return window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Olá, M44 TCG! Tenho interesse na carta ' + t.dataset.ask + '.')}`, '_blank');
   }
-  if (t.dataset.cat) storeCat = t.dataset.cat;
+  if (t.dataset.cat) { storeCat = t.dataset.cat; saveCart(); renderStore(); return $('#store-produtos')?.scrollIntoView({ behavior: 'smooth' }); }
   else if (t.dataset.add) addToCart(t.dataset.add);
   else if (t.dataset.sub) { cart[t.dataset.sub]--; if (cart[t.dataset.sub] <= 0) delete cart[t.dataset.sub]; }
   else if (t.id === 'btn-clear') cart = {};
@@ -659,6 +664,12 @@ function applyStore() {
   if (c.whatsapp) WHATSAPP = c.whatsapp;
   heroIdx = 0;
   updateCartBadge();
+  updateFooter();
+}
+function updateFooter() {
+  const a = $('#foot-wa'); if (!a) return;
+  const ok = typeof WHATSAPP === 'string' && /^\d{10,15}$/.test(WHATSAPP);
+  a.hidden = !ok; if (ok) a.href = 'https://wa.me/' + WHATSAPP;
 }
 async function loadStoreConfig() {
   try { const r = await fetch('data/loja.json', { cache: 'no-store' }); if (r.ok) storeCfg = await r.json(); } catch {}
@@ -870,7 +881,8 @@ const cartLines = () => PRODUCTS.filter(p => cart[p.id] > 0);
 const cartCount = () => cartLines().reduce((n, p) => n + cart[p.id], 0);
 function updateCartBadge() {
   const b = $('#cart-badge'); if (!b) return;
-  const n = cartCount(); b.textContent = n > 99 ? '99+' : n; b.style.display = n ? 'grid' : 'none';
+  const n = cartCount();
+  const bb = $('#bn-badge'); if (bb) { bb.textContent = n > 99 ? '99+' : n; bb.style.display = n ? 'grid' : 'none'; } b.textContent = n > 99 ? '99+' : n; b.style.display = n ? 'grid' : 'none';
   $('#btn-cart').setAttribute('aria-label', n ? `Abrir carrinho (${n} ${n === 1 ? 'item' : 'itens'})` : 'Abrir carrinho');
 }
 function openCart() { drawCart(); const m = $('#cart-modal'); m.classList.remove('hidden'); m.classList.add('flex'); }
@@ -904,6 +916,8 @@ function drawCart() {
     <button data-cact="clear" class="w-full mt-2 text-xs underline text-slate-500">Esvaziar carrinho</button>`;
 }
 $('#btn-cart').addEventListener('click', openCart);
+$('#bn-cart')?.addEventListener('click', openCart);
+document.querySelectorAll('[data-foot]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); tab = a.dataset.foot; HQ.value = ''; searchQ = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
 $('#cart-modal').addEventListener('click', e => {
   const t = e.target.closest('[data-cact],[data-cminus],[data-cplus],[data-crm],[data-cprod]'); if (!t) return;
   const d = t.dataset;
