@@ -4,7 +4,8 @@
    Autocomplete de cartas via api.pokemontcg.io (já liberada na CSP do netlify.toml). */
 (function () {
   'use strict';
-  const KEY = 'm44_catalogo_v1';
+  const KEY = 'm44_catalogo_v1';        // formato antigo (1 catálogo) — migrado automaticamente
+  const KEY2 = 'm44_catalogos_v2';      // vários catálogos
   const $ = (s, r = document) => r.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const root = $('#catalog');
@@ -17,7 +18,9 @@
   const CONDS = ['M', 'NM', 'SP', 'MP', 'HP', 'D'];
   const fresh = () => ({ owner: '', phone: '', items: [] });
 
-  let data = load();
+  const store = loadStore();
+  let data = store.list.find(c => c.id === store.active);   // catálogo aberto no momento
+  let editingId = null;
   let shared = null;       // catálogo de outra pessoa (aberto por link)
   let picked = null;       // carta escolhida no autocomplete
   let formType = 'have';
@@ -26,19 +29,44 @@
   let sets = null;         // cache da lista de expansões
   let token = 0;           // descarta respostas antigas da busca
 
-  function load() { try { return JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { return fresh(); } }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { toast('Não foi possível salvar neste navegador.'); } }
+  function newCat(name, base) { return { id: uid(), name: name || 'Meu catálogo', owner: (base && base.owner) || '', phone: (base && base.phone) || '', items: (base && base.items) || [], updated: Date.now() }; }
+  function loadStore() {
+    try {
+      const st = JSON.parse(localStorage.getItem(KEY2));
+      if (st && Array.isArray(st.list) && st.list.length) {
+        st.list.forEach(c => { c.items = Array.isArray(c.items) ? c.items : []; c.name = c.name || 'Meu catálogo'; });
+        if (!st.list.some(c => c.id === st.active)) st.active = st.list[0].id;
+        return st;
+      }
+    } catch { /* começa do zero */ }
+    let old = null; try { old = JSON.parse(localStorage.getItem(KEY)); } catch { /* ignora */ }
+    const c = newCat('Meu catálogo', old);          // migra o catálogo do formato antigo
+    return { active: c.id, list: [c] };
+  }
+  function save() {
+    try { data.updated = Date.now(); store.active = data.id; localStorage.setItem(KEY2, JSON.stringify(store)); }
+    catch (e) { toast('Não foi possível salvar neste navegador.'); }
+  }
+  const titleOf = d => (d.name && d.name !== 'Meu catálogo') ? d.name : 'Catálogo de ' + (d.owner || 'colecionador');
+  const fmtDate = t => new Date(t || Date.now()).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  function switchTo(id) { data = store.list.find(c => c.id === id) || data; store.active = data.id; editingId = null; save(); render(); }
+  function stopEdit(full) {
+    editingId = null;
+    const sb = $('#cat-submit'); if (sb) sb.textContent = 'Adicionar ao catálogo';
+    $('#cat-cancel')?.classList.add('hidden');
+    if (full && $('#cat-name')) { ['name', 'set', 'num', 'price', 'note'].forEach(k => $('#cat-' + k).value = ''); $('#cat-qty').value = 1; $('#cat-cond').value = ''; setId = ''; picked = null; }
+  }
   function toast(msg) {
     const t = $('#toast'); if (!t) return alert(msg);
     t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2400);
   }
-  const uid = () => Math.random().toString(36).slice(2, 9);
+  function uid() { return Math.random().toString(36).slice(2, 9); }
   const brl = n => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const digits = s => String(s || '').replace(/\D/g, '');
 
   // ---------- link compartilhável (dados na própria URL, sem servidor) ----------
   function encode(d) {
-    const min = { o: d.owner, p: d.phone, i: d.items.map(i => [i.type, i.name, i.set, i.number, i.qty, i.cond, i.mode, i.price, i.note]) };
+    const min = { n: d.name || '', o: d.owner, p: d.phone, i: d.items.map(i => [i.type, i.name, i.set, i.number, i.qty, i.cond, i.mode, i.price, i.note]) };
     return btoa(unescape(encodeURIComponent(JSON.stringify(min)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
   function decode(str) {
@@ -46,7 +74,7 @@
       const b = str.replace(/-/g, '+').replace(/_/g, '/');
       const m = JSON.parse(decodeURIComponent(escape(atob(b))));
       return {
-        owner: String(m.o || ''), phone: String(m.p || ''),
+        name: String(m.n || ''), owner: String(m.o || ''), phone: String(m.p || ''),
         items: (m.i || []).slice(0, 300).map(r => ({ id: uid(), type: r[0] === 'want' ? 'want' : 'have', name: String(r[1] || ''), set: String(r[2] || ''), number: String(r[3] || ''), qty: +r[4] || 1, cond: String(r[5] || ''), mode: r[6] || 'both', price: r[7] || '', note: String(r[8] || '') }))
       };
     } catch { return null; }
@@ -57,7 +85,7 @@
     const line = i => `• ${i.qty}x ${i.name}${i.set ? ' (' + i.set + (i.number ? ' ' + i.number : '') + ')' : ''}${i.cond ? ' [' + i.cond + ']' : ''} — ${MODES[i.type][i.mode]}${i.price ? ' ' + brl(i.price) : ''}`;
     const have = d.items.filter(i => i.type === 'have').map(line);
     const want = d.items.filter(i => i.type === 'want').map(line);
-    let t = `*Catálogo de ${d.owner || 'colecionador'} — M44 TCG*\n`;
+    let t = `*${titleOf(d)} — M44 TCG*\n`;
     if (have.length) t += `\n*Tenho:*\n${have.join('\n')}\n`;
     if (want.length) t += `\n*Procuro:*\n${want.join('\n')}\n`;
     return t;
@@ -78,7 +106,7 @@
         <p class="text-sm mt-0.5">${badge(i, readonly)}${i.price ? ` <strong class="ml-1">${brl(i.price)}</strong>` : ''}</p>
         ${i.note ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${esc(i.note)}</p>` : ''}
       </div>
-      ${readonly ? '' : `<button data-cat="del" data-id="${i.id}" class="self-start h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 text-sm" aria-label="Remover ${esc(i.name)}">✕</button>`}
+      ${readonly ? '' : `<div class="self-start flex flex-col gap-1"><button data-cat="edit" data-id="${i.id}" class="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 text-sm" aria-label="Editar ${esc(i.name)}">✎</button><button data-cat="del" data-id="${i.id}" class="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 text-sm" aria-label="Remover ${esc(i.name)}">✕</button></div>`}
     </li>`;
   }
   function lists(d, readonly) {
@@ -96,11 +124,12 @@
     const wa = digits(shared.phone);
     root.innerHTML = `<div class="space-y-5">
       <div class="flex flex-wrap items-center gap-3">
-        <div><h2 class="text-2xl font-extrabold">Catálogo de ${esc(shared.owner || 'colecionador')}</h2><p class="text-sm text-slate-500 dark:text-slate-400">${shared.items.length} itens</p></div>
+        <div><h2 class="text-2xl font-extrabold">${esc(titleOf(shared))}</h2><p class="text-sm text-slate-500 dark:text-slate-400">${shared.items.length} itens</p></div>
         <div class="ml-auto flex gap-2">
           ${wa ? `<a class="px-4 py-2 rounded-lg bg-[#25d366] text-white font-bold" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent('Oi! Vi seu catálogo na M44 TCG.')}">Chamar no WhatsApp</a>` : ''}
-          <button data-cat="img" class="px-4 py-2 rounded-lg bg-[#004de9] text-white font-semibold">Baixar como imagens</button>
-          <button data-cat="mine" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold">Ver meu catálogo</button>
+          <button data-cat="img" class="px-4 py-2 rounded-lg bg-[#004de9] text-white font-semibold">Baixar como imagens (JPG)</button>
+          <button data-cat="copycat" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold">Salvar uma cópia</button>
+          <button data-cat="mine" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold">Ver meus catálogos</button>
         </div>
       </div>${lists(shared, true)}</div>`;
   }
@@ -109,6 +138,16 @@
     root.innerHTML = `<div class="space-y-5">
       <div><h2 class="text-2xl font-extrabold">Meu Catálogo</h2>
       <p class="text-sm text-slate-500 dark:text-slate-400">Liste o que você tem para vender/trocar e o que procura. Compartilhe o link com outros colecionadores.</p></div>
+
+      <div class="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60">
+        <label for="cat-switch" class="text-sm font-semibold">Catálogo:</label>
+        <select id="cat-switch" class="${inputCls} flex-1 min-w-[180px]">${store.list.map(c => `<option value="${c.id}"${c.id === data.id ? ' selected' : ''}>${esc(c.name)} (${c.items.length})</option>`).join('')}</select>
+        <button data-cat="newcat" class="px-3 py-2 rounded-lg bg-[#004de9] text-white text-sm font-bold">+ Novo</button>
+        <button data-cat="rename" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold">Renomear</button>
+        <button data-cat="dupcat" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold">Duplicar</button>
+        <button data-cat="delcat" class="px-3 py-2 rounded-lg border border-red-300 text-red-600 text-sm font-semibold">Excluir</button>
+        <p class="basis-full text-xs text-slate-500 dark:text-slate-400">Tudo é salvo automaticamente neste navegador e pode ser editado quando quiser · última alteração: ${fmtDate(data.updated)}</p>
+      </div>
 
       <div class="grid sm:grid-cols-2 gap-2">
         <input id="cat-owner" class="${inputCls}" placeholder="Seu nome" maxlength="40" value="${esc(data.owner)}" aria-label="Seu nome">
@@ -136,17 +175,18 @@
           <input id="cat-price" class="${inputCls}" type="number" min="0" step="0.01" placeholder="Preço R$ (opcional)" aria-label="Preço">
           <input id="cat-note" class="${inputCls} sm:col-span-2" placeholder="Observação (ex.: aceito troca por Pikachu)" maxlength="120" aria-label="Observação">
         </div>
-        <button class="px-5 py-2 rounded-lg bg-[#004de9] text-white font-bold">Adicionar ao catálogo</button>
+        <div class="flex flex-wrap gap-2"><button id="cat-submit" class="px-5 py-2 rounded-lg bg-[#004de9] text-white font-bold">Adicionar ao catálogo</button>
+          <button type="button" id="cat-cancel" data-cat="canceledit" class="hidden px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold">Cancelar edição</button></div>
       </form>
 
       <div id="cat-lists"></div>
 
       <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-        <button data-cat="img" class="px-4 py-2 rounded-lg bg-[#004de9] text-white font-semibold">Baixar como imagens</button>
+        <button data-cat="img" class="px-4 py-2 rounded-lg bg-[#004de9] text-white font-semibold">Baixar como imagens (JPG)</button>
         <button data-cat="copy" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold">Copiar link do catálogo</button>
         <button data-cat="wa" class="px-4 py-2 rounded-lg bg-[#25d366] text-white font-semibold">Compartilhar no WhatsApp</button>
         <button data-cat="text" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold">Copiar como texto</button>
-        <button data-cat="clear" class="px-4 py-2 rounded-lg border border-red-300 text-red-600 font-semibold ml-auto">Limpar tudo</button>
+        <button data-cat="clear" class="px-4 py-2 rounded-lg border border-red-300 text-red-600 font-semibold ml-auto">Limpar cartas</button>
       </div></div>`;
     syncForm(); refreshLists();
   }
@@ -225,22 +265,25 @@
     else if (e.target.id === 'cat-name' || e.target.id === 'cat-num') { picked = null; clearTimeout(timer); timer = setTimeout(searchCards, 350); }
     else if (e.target.id === 'cat-set') { setId = ''; picked = null; suggestSets(e.target.value.trim()); }
   });
+  root.addEventListener('change', e => { if (e.target.id === 'cat-switch') switchTo(e.target.value); });
   root.addEventListener('focusin', e => { if (e.target.id === 'cat-set') suggestSets(e.target.value.trim()); });
   root.addEventListener('submit', e => {
     if (e.target.id !== 'cat-form') return;
     e.preventDefault();
     const name = $('#cat-name').value.trim(); if (!name) return;
-    if (data.items.length >= 300) return toast('Limite de 300 itens por catálogo.');
-    data.items.push({
-      id: uid(), type: formType, name, img: picked?.img || '',
+    const old = editingId && data.items.find(i => i.id === editingId);
+    if (!old && data.items.length >= 300) return toast('Limite de 300 itens por catálogo.');
+    const item = {
+      id: old ? old.id : uid(), type: formType, name, img: picked?.img || '',
       set: $('#cat-set').value.trim(), number: $('#cat-num').value.trim(),
       qty: Math.max(1, +$('#cat-qty').value || 1), cond: $('#cat-cond').value,
       mode: $('#cat-mode').value, price: $('#cat-price').value, note: $('#cat-note').value.trim()
-    });
+    };
+    if (old) data.items[data.items.indexOf(old)] = item; else data.items.push(item);
     save(); picked = null;
     ['name', 'num', 'price', 'note'].forEach(k => $('#cat-' + k).value = '');   // mantém a expansão p/ cadastrar várias da mesma
     $('#cat-qty').value = 1; $('#cat-sugg').classList.add('hidden');
-    refreshLists(); toast('Carta adicionada!');
+    const wasEdit = !!old; stopEdit(wasEdit); refreshLists(); toast(wasEdit ? 'Alterações salvas!' : 'Carta adicionada!');
   });
   root.addEventListener('click', async e => {
     const b = e.target.closest('[data-cat]'); if (!b) return;
@@ -256,7 +299,39 @@
       $('#cat-set').value = x.name; setId = x.id; $('#cat-setsugg').classList.add('hidden');
       searchCards();   // já lista as cartas da expansão escolhida
     }
-    else if (act === 'del') { data.items = data.items.filter(i => i.id !== b.dataset.id); save(); refreshLists(); }
+    else if (act === 'del') { if (editingId === b.dataset.id) stopEdit(true); data.items = data.items.filter(i => i.id !== b.dataset.id); save(); refreshLists(); }
+    else if (act === 'edit') {
+      const it = data.items.find(i => i.id === b.dataset.id); if (!it) return;
+      editingId = it.id; formType = it.type; syncForm();
+      $('#cat-name').value = it.name; $('#cat-set').value = it.set || ''; $('#cat-num').value = it.number || ''; $('#cat-qty').value = it.qty || 1;
+      $('#cat-cond').value = it.cond || ''; $('#cat-mode').value = it.mode; $('#cat-price').value = it.price || ''; $('#cat-note').value = it.note || '';
+      setId = ''; picked = { img: it.img || '' }; $('#cat-sugg').classList.add('hidden');
+      $('#cat-submit').textContent = 'Salvar alterações'; $('#cat-cancel').classList.remove('hidden');
+      $('#cat-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    else if (act === 'canceledit') stopEdit(true);
+    else if (act === 'newcat') {
+      const n = (prompt('Nome do novo catálogo:', 'Catálogo ' + (store.list.length + 1)) || '').trim(); if (!n) return;
+      const c = newCat(n, { owner: data.owner, phone: data.phone, items: [] }); store.list.push(c); switchTo(c.id); toast('Catálogo criado!');
+    }
+    else if (act === 'rename') {
+      const n = (prompt('Novo nome do catálogo:', data.name) || '').trim(); if (!n) return;
+      data.name = n; save(); render();
+    }
+    else if (act === 'dupcat') {
+      const c = newCat(data.name + ' (cópia)', { owner: data.owner, phone: data.phone, items: data.items.map(i => ({ ...i, id: uid() })) });
+      store.list.push(c); switchTo(c.id); toast('Catálogo duplicado!');
+    }
+    else if (act === 'delcat') {
+      if (!confirm(`Excluir o catálogo "${data.name}" com ${data.items.length} item(ns)? Os outros catálogos não serão afetados.`)) return;
+      store.list = store.list.filter(c => c.id !== data.id);
+      if (!store.list.length) store.list.push(newCat('Meu catálogo'));
+      data = store.list[0]; editingId = null; save(); render(); toast('Catálogo excluído.');
+    }
+    else if (act === 'copycat') {
+      const c = newCat(titleOf(shared) + ' (salvo)', { owner: data.owner, phone: data.phone, items: shared.items.map(i => ({ ...i, id: uid() })) });
+      store.list.push(c); shared = null; history.replaceState(null, '', location.pathname); switchTo(c.id); toast('Cópia salva nos seus catálogos!');
+    }
     else if (act === 'img') { b.disabled = true; try { await exportImages(shared || data); } finally { b.disabled = false; } }
     else if (act === 'cycle') {
       const it = data.items.find(i => i.id === b.dataset.id); if (!it) return;
@@ -265,7 +340,7 @@
     else if (act === 'copy') { await copy(shareUrl()); toast('Link copiado!'); }
     else if (act === 'text') { await copy(whatsText(data)); toast('Texto copiado!'); }
     else if (act === 'wa') window.open('https://wa.me/?text=' + encodeURIComponent(whatsText(data) + '\n' + shareUrl()), '_blank', 'noopener');
-    else if (act === 'clear') { if (confirm('Apagar todo o seu catálogo?')) { data = fresh(); save(); render(); } }
+    else if (act === 'clear') { if (confirm('Remover todas as cartas deste catálogo? Os outros catálogos não são afetados.')) { data.items = []; editingId = null; save(); render(); } }
     else if (act === 'mine') { shared = null; history.replaceState(null, '', location.pathname); render(); }
   });
   document.addEventListener('click', e => {
@@ -292,12 +367,34 @@
 
   // ---------- baixar catálogo como imagens (PNG) ----------
   const W = 1080, H = 1350, PAD = 40, GAP = 16, COLS = 4, ROWS = 3, PER = COLS * ROWS;
-  const loadImg = src => new Promise(res => {
-    if (!src) return res(null);
+  const tryLoad = src => new Promise(res => {
     const im = new Image(); im.crossOrigin = 'anonymous';
     im.onload = () => res(im); im.onerror = () => res(null); im.src = src;
     setTimeout(() => res(null), 8000);
   });
+  // tenta direto; se a origem não liberar CORS, usa o repasse /img-carta (netlify/functions/img-carta.mjs)
+  async function loadImg(src) {
+    if (!src) return null;
+    return (await tryLoad(src)) || (/^https:\/\/images\.pokemontcg\.io\//.test(src) ? await tryLoad('/img-carta?u=' + encodeURIComponent(src)) : null);
+  }
+  // carta sem foto salva (digitada à mão): procura a imagem na base pelo nome/número/expansão
+  const imgCache = new Map();
+  async function findImg(it) {
+    const key = normTxt(it.name) + '|' + normTxt(it.set) + '|' + it.number;
+    if (imgCache.has(key)) return imgCache.get(key);
+    const cl = v => String(v).replace(/["\\]/g, '');
+    const base = `name:"${cl(it.name)}"`, num = it.number ? ` number:"${cl(it.number)}"` : '', st = it.set ? ` set.name:"${cl(it.set)}"` : '';
+    let url = '';
+    for (const q of [base + num + st, base + num, base]) {
+      try {
+        const r = await fetch('https://api.pokemontcg.io/v2/cards?pageSize=1&select=images&q=' + encodeURIComponent(q));
+        if (r.ok) url = (await r.json()).data?.[0]?.images?.small || '';
+      } catch { /* tenta a próxima variação */ }
+      if (url) break;
+    }
+    imgCache.set(key, url); return url;
+  }
+  async function pool(arr, fn, n = 6) { let i = 0; await Promise.all(Array.from({ length: Math.min(n, arr.length) }, async () => { while (i < arr.length) await fn(arr[i++]); })); }
   function fit(x, text, maxW) {
     if (x.measureText(text).width <= maxW) return text;
     while (text.length > 1 && x.measureText(text + '…').width > maxW) text = text.slice(0, -1);
@@ -315,7 +412,7 @@
     x.fillStyle = '#004de9'; x.fillRect(0, 0, W, 8);
     // cabeçalho
     x.fillStyle = '#fff'; x.textBaseline = 'alphabetic'; x.font = '800 46px "Barlow Condensed", Outfit, sans-serif';
-    x.fillText(fit(x, 'Catálogo de ' + (d.owner || 'colecionador'), W - 2 * PAD - 120), PAD, 84);
+    x.fillText(fit(x, titleOf(d), W - 2 * PAD - 120), PAD, 84);
     x.font = '700 22px Outfit, sans-serif'; x.fillStyle = '#94a3b8'; x.textAlign = 'right'; x.fillText(`${n}/${total}`, W - PAD, 80); x.textAlign = 'left';
     const label = have ? 'TENHO · venda ou troca' : 'PROCURO · compra ou troca';
     x.font = '700 20px Outfit, sans-serif'; const lw = x.measureText(label).width + 32;
@@ -340,9 +437,9 @@
     });
     // rodapé
     x.fillStyle = '#22305c'; x.fillRect(PAD, H - 66, W - 2 * PAD, 1.5);
-    x.fillStyle = '#fff'; x.font = '800 24px "Barlow Condensed", Outfit, sans-serif'; x.fillText('M44 TCG', PAD, H - 28);
+    x.fillStyle = '#fff'; x.font = '800 24px "Barlow Condensed", Outfit, sans-serif'; x.fillText('M44 TCG' + (d.owner ? ' · ' + d.owner : ''), PAD, H - 28);
     if (d.phone) { x.font = '600 20px Outfit, sans-serif'; x.fillStyle = '#cfe0ff'; x.textAlign = 'right'; x.fillText('WhatsApp: ' + d.phone, W - PAD, H - 28); x.textAlign = 'left'; }
-    return new Promise(res => c.toBlob(res, 'image/png'));
+    return new Promise(res => c.toBlob(res, 'image/jpeg', 0.92));
   }
   function download(blob, name) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
@@ -350,17 +447,21 @@
   }
   async function exportImages(d) {
     if (!d.items.length) return toast('Seu catálogo está vazio.');
-    toast('Gerando imagens...');
+    toast('Gerando imagens... buscando as fotos das cartas');
     try { await Promise.all(['400 20px Outfit', '700 20px Outfit', '800 20px "Barlow Condensed"'].map(f => document.fonts.load(f))); } catch { /* usa fonte reserva */ }
-    const loaded = await Promise.all(d.items.map(i => loadImg(i.img)));
-    const imgs = new Map(d.items.map((i, k) => [i.id, loaded[k]]));
+    const imgs = new Map(); let found = false;
+    await pool(d.items, async it => {
+      if (!it.img) { const u = await findImg(it); if (u) { it.img = u; found = true; } }
+      imgs.set(it.id, await loadImg(it.img));
+    });
+    if (found && d === data) save();   // guarda as fotos encontradas no catálogo
     const pages = [];
     ['have', 'want'].forEach(type => { const its = d.items.filter(i => i.type === type); for (let k = 0; k < its.length; k += PER) pages.push({ type, its: its.slice(k, k + PER) }); });
-    const slug = normTxt(d.owner).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'colecionador';
+    const slug = normTxt(d.name && d.name !== 'Meu catálogo' ? d.name : d.owner).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'colecionador';
     for (let k = 0; k < pages.length; k++) {
       const blob = await drawPage(d, pages[k], k + 1, pages.length, imgs);
       if (!blob) { toast('Não foi possível gerar a imagem neste navegador.'); return; }
-      download(blob, `catalogo-m44-${slug}-${pages[k].type === 'have' ? 'tenho' : 'procuro'}-${k + 1}.png`);
+      download(blob, `catalogo-m44-${slug}-${pages[k].type === 'have' ? 'tenho' : 'procuro'}-${k + 1}.jpg`);
       await new Promise(r => setTimeout(r, 400));   // evita o bloqueio de downloads múltiplos
     }
     toast(pages.length > 1 ? `${pages.length} imagens baixadas!` : 'Imagem baixada!');
@@ -403,7 +504,7 @@
       if (!info || !info.name) return toast('Não consegui identificar essa carta.');
       const type = b.dataset.catAdd, r = addItem({ ...info, type });
       if (r === null) return;
-      toast(`${r ? 'Quantidade atualizada' : 'Adicionada'} em ${type === 'want' ? 'Procuro' : 'Vendo/Troco'} — veja em Meu Catálogo`);
+      toast(`${r ? 'Quantidade atualizada' : 'Adicionada'} em ${type === 'want' ? 'Procuro' : 'Vendo/Troco'} — catálogo "${data.name}"`);
       const old = b.textContent; b.textContent = '✓ Adicionada'; setTimeout(() => b.textContent = old, 1200);
     }, true);
     decorate();
