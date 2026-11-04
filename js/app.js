@@ -187,7 +187,8 @@ async function loadSets() {
     // Não completar com nomes/códigos inventados: manter apenas dados retornados pelo catálogo.
     sets = sets.filter(s => s && s.id && s.name && s.images && (s.images.logo || s.images.symbol));
     setData = groupSets(sets);
-    $('#gen-sel').innerHTML = '<option value="all">Todas as expansões</option>' + setData.map(g => `<option value="${g.gen}">${esc(g.title)}</option>`).join('');
+    $('#gen-sel').innerHTML = '<option value="all">Todas as séries</option>' + setData.map(g => `<option value="${g.gen}">${esc(g.title)}</option>`).join('');
+    $('#gen-sel').value = seriesSel;
     render();
   } catch (e) {
     if (tab === 'all') box.innerHTML = `<div class="py-12 text-center text-red-600 dark:text-red-400"><p class="mb-3">Não foi possível carregar a lista de expansões. Verifique sua internet e tente novamente.</p><button onclick="loadSets()" class="px-4 py-2 rounded-lg bg-[#004de9] text-white font-semibold">Tentar novamente</button></div>`;
@@ -248,7 +249,7 @@ $('#set-cards-content').addEventListener('click', e => {
   const card = e.target.closest('[data-exp-card]'); if (!card) return;
   const id = card.dataset.expCard;
   if (expansionCardCol.has(id)) expansionCardCol.delete(id); else expansionCardCol.add(id);
-  saveExp();
+  saveExp(); statsSets();
   const owned = expansionCardCol.has(id);
   card.setAttribute('aria-pressed', String(owned));
   card.classList.toggle('border-emerald-400', owned);
@@ -262,23 +263,41 @@ $('#set-cards-content').addEventListener('click', e => {
   if (label) { label.textContent = owned ? '✓ Na minha coleção' : '＋ Adicionar à coleção'; label.className = `mt-1 block text-xs font-bold ${owned ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#004de9] dark:text-[#8eb0ff]'}`; }
 });
 
+const visibleSetGroups = () => setData.filter(g => seriesSel === 'all' || +seriesSel === g.gen);
+function setTileHTML(c) {
+  const on = setCol.has(c.id);
+  return `<div class="slot set-tile ${on ? 'on' : 'off'}">
+    <div class="set-tile__logo">${c.image ? `<img src="${esc(c.image)}" alt="Logo ${esc(c.name)}" loading="lazy" decoding="async" onerror="this.closest('.slot')?.remove()">` : `<span class="set-tile__ph">TCG</span>`}</div>
+    <span class="set-tile__name">${esc(c.name)}</span>
+    <span class="set-tile__meta">${esc(c.number)}</span>
+    <div class="set-tile__acts">
+      <button type="button" data-view-set="${esc(c.sourceId)}" data-set-name="${esc(c.name)}">Ver cartas</button>
+      <button type="button" data-setid="${esc(c.id)}" aria-pressed="${on}" aria-label="${on ? 'Remover' : 'Marcar'} expansão ${esc(c.name)}">${on ? '✓ Tenho' : '＋ Marcar'}</button>
+    </div>
+  </div>`;
+}
 function renderSets() {
-  const term = query.trim().toLowerCase();
-  let html = '', shown = 0;
+  document.querySelectorAll('[data-status]').forEach(b => b.classList.toggle('is-on', b.dataset.status === statusSel));
+  let html = '', shown = 0, groups = 0;
   for (const g of setData) {
     if (seriesSel !== 'all' && +seriesSel !== g.gen) continue;
-    const cards = g.cards.filter(c =>
-      (statusSel === 'all' || (statusSel === 'have') === setCol.has(c.id)) &&
-      (!term || c.name.toLowerCase().includes(term) || c.number.toLowerCase().includes(term)));
+    const cards = g.cards.filter(c => statusSel === 'all' || (statusSel === 'have') === setCol.has(c.id));
     if (!cards.length) continue;
-    shown += cards.length;
-    const owned = cards.filter(c => setCol.has(c.id)).length;
-    html += `<details data-set-group="${g.gen}" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" ${openSets.has(g.gen) || term ? 'open' : ''}>
-      <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"><span class="chev transition-transform text-slate-400">▶</span><span class="font-bold">${esc(g.title)}</span><span class="ml-auto text-sm text-slate-500 dark:text-slate-400" data-set-gc="${g.gen}">${owned}/${cards.length}</span><span class="w-24 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden hidden sm:block"><span data-set-gb="${g.gen}" class="block h-full bg-[#004de9]" style="width:${cards.length ? owned/cards.length*100 : 0}%"></span></span></summary>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 pt-1">${cards.map(c => `<div class="slot ${setCol.has(c.id) ? 'on' : 'off'} rounded-xl p-3 bg-slate-50 dark:bg-slate-800/60 text-center min-h-[170px] flex flex-col items-center justify-center gap-2">${c.image ? `<img src="${esc(c.image)}" alt="Logo ${esc(c.name)}" loading="lazy" decoding="async" class="w-full h-16 object-contain" onerror="this.closest('.slot')?.remove()">` : `<span class="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-950 text-[#004de9] dark:text-[#8eb0ff] grid place-items-center font-black text-lg">TCG</span>`}<span class="block text-sm font-semibold">${esc(c.name)}</span><span class="block text-xs text-slate-500 dark:text-slate-400">${esc(c.number)}</span><button type="button" data-view-set="${esc(c.sourceId)}" data-set-name="${esc(c.name)}" class="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-xs font-bold text-[#004de9] dark:text-[#8eb0ff] hover:bg-blue-50 dark:hover:bg-slate-800">Ver cartas</button><button type="button" data-setid="${esc(c.id)}" aria-pressed="${setCol.has(c.id)}" class="w-full rounded-lg px-2 py-1.5 text-xs font-bold ${setCol.has(c.id) ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}">${setCol.has(c.id) ? '✓ Na coleção' : '＋ Marcar expansão'}</button></div>`).join('')}</div></details>`;
+    shown += cards.length; groups++;
+    const owned = g.cards.filter(c => setCol.has(c.id)).length;
+    html += `<details data-set-group="${g.gen}" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" ${openSets.has(g.gen) ? 'open' : ''}>
+      <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"><span class="chev transition-transform text-slate-400">▶</span><span class="font-bold">${esc(g.title)}</span><span class="ml-auto text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap" data-set-gc="${g.gen}">${owned}/${g.cards.length}</span><span class="w-14 sm:w-28 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex-none"><span data-set-gb="${g.gen}" class="block h-full bg-[#004de9]" style="width:${g.cards.length ? owned / g.cards.length * 100 : 0}%"></span></span></summary>
+      <div class="set-grid">${cards.map(setTileHTML).join('')}</div></details>`;
   }
-  if (!shown) html = `<div class="py-16 text-center text-slate-500">${statusSel === 'have' && !setCol.size ? 'Sua coleção de expansões está vazia. Escolha “Todas as expansões” e marque as que você tem.' : 'Nenhuma expansão encontrada para esse filtro.'}</div>`;
+  if (!shown) {
+    const msg = statusSel === 'have' ? (setCol.size ? 'Nenhuma expansão marcada neste filtro.' : 'Você ainda não marcou nenhuma expansão. Volte para “Todas” e marque as que você tem.')
+      : statusSel === 'miss' ? 'Não falta nenhuma expansão neste filtro. 🎉' : 'Nenhuma expansão encontrada.';
+    html = `<div class="py-16 text-center text-slate-500"><p class="mb-3">${msg}</p>${statusSel !== 'all' || seriesSel !== 'all' ? '<button type="button" data-reset-filters class="col-btn">Limpar filtros</button>' : ''}</div>`;
+  }
   $('#gens').innerHTML = html;
+  $('#col-count').textContent = shown ? `${shown} ${shown === 1 ? 'expansão' : 'expansões'} em ${groups} ${groups === 1 ? 'série' : 'séries'}` : '';
+  const vis = visibleSetGroups();
+  $('#btn-fold').textContent = vis.length && vis.every(g => openSets.has(g.gen)) ? 'Recolher tudo' : 'Expandir tudo';
   statsSets();
 }
 function statsSets() {
@@ -286,6 +305,8 @@ function statsSets() {
   const have = setData.reduce((n, g) => n + g.cards.filter(c => setCol.has(c.id)).length, 0);
   const pct = all ? Math.round(have / all * 100) : 0;
   $('#total-have').textContent = have; $('#total-all').textContent = all; $('#total-pct').textContent = pct + '%'; $('#total-bar').style.width = pct + '%';
+  const chips = $('#col-chips');
+  if (chips) chips.innerHTML = `<span class="col-chip"><b>${have}</b> ${have === 1 ? 'expansão marcada' : 'expansões marcadas'}</span><span class="col-chip"><b>${expansionCardCol.size}</b> ${expansionCardCol.size === 1 ? 'carta avulsa marcada' : 'cartas avulsas marcadas'}</span><span class="col-chip"><b>${setData.length}</b> séries</span>`;
   for (const g of setData) {
     const owned = g.cards.filter(c => setCol.has(c.id)).length;
     const gc = document.querySelector(`[data-set-gc="${g.gen}"]`), gb = document.querySelector(`[data-set-gb="${g.gen}"]`);
@@ -302,6 +323,7 @@ function render() {
     b.classList.toggle('is-active', on);
   });
   const trades = tab === 'trades', store = tab === 'store', srch = tab === 'search', mine = tab === 'mine', chat = tab === 'chat';
+  $('#col-chips')?.classList.toggle('hidden', tab !== 'all');
   const chatEl = $('#chat'); if (chatEl) chatEl.classList.toggle('hidden', !chat);
   $('#store').classList.toggle('hidden', !store);
   $('#trades').classList.toggle('hidden', !trades);
@@ -371,12 +393,19 @@ function stats() {
 $('#gens').addEventListener('click', e => {
   const viewSet = e.target.closest('[data-view-set]');
   if (viewSet) { openSetCards(viewSet.dataset.viewSet, viewSet.dataset.setName); return; }
+  if (e.target.closest('[data-reset-filters]')) {
+    statusSel = 'all'; seriesSel = 'all'; $('#gen-sel').value = 'all'; render(); return;
+  }
   const sb = e.target.closest('[data-setid]');
   if (sb) {
     const id = sb.dataset.setid;
     if (setCol.has(id)) setCol.delete(id); else setCol.add(id);
     saveSets();
-    renderSets();
+    if (statusSel !== 'all') return renderSets();
+    const on = setCol.has(id), tile = sb.closest('.set-tile');
+    tile?.classList.toggle('on', on); tile?.classList.toggle('off', !on);
+    sb.setAttribute('aria-pressed', on); sb.textContent = on ? '✓ Tenho' : '＋ Marcar';
+    statsSets();
     return;
   }
   const b = e.target.closest('[data-id]');
@@ -399,9 +428,13 @@ $('#gens').addEventListener('toggle', e => {
   if (g) e.target.open ? openGens.add(g) : openGens.delete(g);
 }, true);
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; HQ.value = ''; searchQ = ''; render(); });
-$('#q').oninput = debounce(e => { query = e.target.value; render(); });
-$('#status-sel').onchange = e => { statusSel = e.target.value; render(); };
+document.querySelectorAll('[data-status]').forEach(b => b.onclick = () => { statusSel = b.dataset.status; render(); });
 $('#gen-sel').onchange = e => { seriesSel = e.target.value; render(); };
+$('#btn-fold').onclick = () => {
+  const vis = visibleSetGroups(), allOpen = vis.length && vis.every(g => openSets.has(g.gen));
+  vis.forEach(g => allOpen ? openSets.delete(g.gen) : openSets.add(g.gen));
+  renderSets();
+};
 
 $('#btn-export').onclick = () => {
   const blob = new Blob([JSON.stringify({ versao: 2, exportadoEm: new Date().toISOString(), cartas: [...col], expansoes: [...setCol], cartasExpansao: [...expansionCardCol] })], { type: 'application/json' });

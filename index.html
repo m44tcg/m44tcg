@@ -19,7 +19,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Outfit:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={darkMode:'class'}</script>
-<link rel="stylesheet" href="css/styles.css?v=7">
+<link rel="stylesheet" href="css/styles.css?v=8">
 </head>
 <body class="min-h-screen">
 <div class="promo-strip" role="note"><span>Preços comparados com a LigaPokémon</span><span>Compre, venda e troque cartas</span><span>Pedido finalizado pelo WhatsApp</span></div>
@@ -51,20 +51,28 @@
       <span id="total-pct" class="text-2xl font-extrabold text-[#004de9]">0%</span>
     </div>
     <div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"><div id="total-bar" class="h-full bg-[#004de9] transition-all" style="width:0%"></div></div>
+    <div id="col-chips" class="col-chips hidden"></div>
   </section>
 
-  <section id="toolbar" class="flex flex-wrap gap-2 mb-5">
+  <section id="toolbar" class="grid gap-3 mb-5">
     <form id="pk-form" class="flex gap-2 w-full" role="search" aria-label="Buscar Pokémon em todas as expansões">
-      <input id="pk-q" type="search" placeholder="Buscar Pokémon pelo nome (ex.: Pikachu) em todas as expansões e promos" class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004de9]" aria-label="Nome do Pokémon">
+      <input id="pk-q" type="search" placeholder="Buscar Pokémon pelo nome (ex.: Pikachu) em todas as expansões e promos" class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004de9]" aria-label="Nome do Pokémon">
       <button class="px-4 py-2 rounded-lg bg-[#004de9] text-white font-bold">Buscar</button>
     </form>
-    <input id="q" type="search" placeholder="Buscar expansão pelo nome" class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004de9]">
-    <select id="status-sel" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
-      <option value="all">Todas as cartas</option><option value="have">Só as que tenho</option><option value="miss">Só as que faltam</option>
-    </select>
-    <select id="gen-sel" aria-label="Filtrar por expansão" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"><option value="all">Todas as expansões</option></select>
-    <button id="btn-export" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-white dark:hover:bg-slate-800">Exportar backup</button>
-    <button id="btn-import" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-white dark:hover:bg-slate-800">Importar</button>
+    <div class="col-bar">
+      <div class="seg" role="group" aria-label="Mostrar expansões">
+        <button type="button" data-status="all">Todas</button>
+        <button type="button" data-status="have">Tenho</button>
+        <button type="button" data-status="miss">Faltam</button>
+      </div>
+      <select id="gen-sel" aria-label="Filtrar por série" class="col-sel px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"><option value="all">Todas as séries</option></select>
+      <span id="col-count" class="col-count" aria-live="polite"></span>
+      <div class="col-tools">
+        <button id="btn-fold" type="button" class="col-btn">Expandir tudo</button>
+        <button id="btn-export" type="button" class="col-btn" title="Exportar backup da coleção">Exportar</button>
+        <button id="btn-import" type="button" class="col-btn" title="Importar backup da coleção">Importar</button>
+      </div>
+    </div>
     <input id="file" type="file" accept="application/json" class="hidden">
   </section>
 
@@ -115,7 +123,7 @@
 <script src="js/m44-db.js?v=3"></script>
 <script src="js/db-bootstrap.js?v=3"></script>
 <script src="assets/cartas/lista.js"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/app.js?v=7"></script>
 <script src="js/chat.js?v=3"></script>
 <script src="js/catalogo.js?v=2"></script>
 <script src="js/busca-pokemon.js?v=1"></script>
