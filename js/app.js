@@ -457,7 +457,7 @@ $('#file').onchange = async e => {
   e.target.value = '';
 };
 
-/* ---------- Loja M44 TCG ---------- */
+/* ---------- Loja NORDEX TCG ---------- */
 let WHATSAPP = '55XXXXXXXXXXX'; // troque pelo número da loja: DDI + DDD + número
 const PRODUCTS = [ // edite nomes, preços e categorias da sua loja
   { id: 'p1', nome: 'Booster avulso', cat: 'Boosters', preco: 24.9, antes: 29.9, desc: 'Pacote com cartas aleatórias.' },
@@ -469,7 +469,7 @@ const PRODUCTS = [ // edite nomes, preços e categorias da sua loja
 ];
 const PROMOS = [ // slides da vitrine: edite títulos, textos e destinos (cat:Categoria, tab:trades, scroll:id)
   { titulo: 'Semana de boosters', texto: 'Boosters e boxes com preço especial por tempo limitado.', btn: 'Ver boosters', go: 'cat:Boosters' },
-  { titulo: 'Vitrine M44', texto: 'Confira as cartas e produtos que estamos destacando agora.', btn: 'Ver vitrine', go: 'scroll:store-vitrine' },
+  { titulo: 'Vitrine NORDEX', texto: 'Confira as cartas e produtos que estamos destacando agora.', btn: 'Ver vitrine', go: 'scroll:store-vitrine' },
   { titulo: 'Troque com outros treinadores', texto: 'Escaneie suas cartas e publique ofertas de troca.', btn: 'Ir para Trocas', go: 'tab:trades' },
 ];
 /* ---------- Vitrine (só o administrador monta; vem de data/loja.json) ----------
@@ -560,7 +560,7 @@ function homeHTML() {
     <div class="hero__copy">
       <p class="pill"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></svg>Pokémon TCG · preços sincronizados com LigaPokémon</p>
       <h2 id="hero-title" class="hero__title">Compre e <em>troque</em> cartas.</h2>
-      <p class="hero__text">A loja <strong>M44 TCG</strong> traz singles, booster boxes e acessórios com preços comparados ao mercado. Monte sua coleção e proponha trocas com valores reais.</p>
+      <p class="hero__text">A loja <strong>NORDEX TCG</strong> traz singles, booster boxes e acessórios com preços comparados ao mercado. Monte sua coleção e proponha trocas com valores reais.</p>
       <ul class="hero__trust">
         <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>Cartas verificadas</li>
         <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>Sistema de trocas</li>
@@ -571,7 +571,7 @@ function homeHTML() {
   </section>`;
   const vitItems = VITRINE.map(vitCardHTML).filter(Boolean);
   const vit = (!vitItems.length && !isAdmin()) ? '' : `<section id="store-vitrine" class="mb-8 scroll-mt-32">
-    <h2 class="text-lg font-bold">Vitrine M44</h2>
+    <h2 class="text-lg font-bold">Vitrine NORDEX</h2>
     <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Cartas e produtos em destaque, escolhidos pela loja.</p>
     ${vitItems.length ? `<div class="pgrid">${vitItems.join('')}</div>` : `<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-sm text-center text-slate-500">A vitrine está vazia. <button type="button" data-open-admin class="underline font-semibold text-[#0050e6] dark:text-[#6e9bff]">Adicionar itens</button></div>`}
   </section>`;
@@ -647,7 +647,7 @@ $('#store').addEventListener('click', e => {
   }
   if (t.dataset.ask) {
     if (WHATSAPP.includes('X')) return alert('Defina o número de WhatsApp da loja na constante WHATSAPP do código.');
-    return window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Olá, M44 TCG! Tenho interesse na carta ' + t.dataset.ask + '.')}`, '_blank');
+    return window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Olá, NORDEX TCG! Tenho interesse na carta ' + t.dataset.ask + '.')}`, '_blank');
   }
   if (t.dataset.cat) { storeCat = t.dataset.cat; saveCart(); renderStore(); return $('#store-produtos')?.scrollIntoView({ behavior: 'smooth' }); }
   else if (t.dataset.add) addToCart(t.dataset.add);
@@ -657,7 +657,7 @@ $('#store').addEventListener('click', e => {
     if (WHATSAPP.includes('X')) return alert('Defina o número de WhatsApp da loja na constante WHATSAPP do código.');
     const lines = PRODUCTS.filter(p => cart[p.id]);
     const total = lines.reduce((n, p) => n + p.preco * cart[p.id], 0);
-    const msg = 'Olá, M44 TCG! Quero fazer este pedido:\n' + lines.map(p => `- ${cart[p.id]}x ${p.nome} (${brl(p.preco)})`).join('\n') + `\nTotal: ${brl(total)}`;
+    const msg = 'Olá, NORDEX TCG! Quero fazer este pedido:\n' + lines.map(p => `- ${cart[p.id]}x ${p.nome} (${brl(p.preco)})`).join('\n') + `\nTotal: ${brl(total)}`;
     return window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
   }
   saveCart(); renderStore();
@@ -837,7 +837,7 @@ $('#search').addEventListener('click', e => {
   if (t.dataset.zoom) return openZoom(t.dataset.zoom, t.dataset.alt || '');
   if (t.dataset.ask) {
     if (WHATSAPP.includes('X')) return alert('Defina o número de WhatsApp da loja.');
-    return window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Olá, M44 TCG! Tenho interesse na carta ' + t.dataset.ask + '.')}`, '_blank');
+    return window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Olá, NORDEX TCG! Tenho interesse na carta ' + t.dataset.ask + '.')}`, '_blank');
   }
   if (t.dataset.add) { if (addToCart(t.dataset.add)) toast('Adicionado ao carrinho.'); return; }
   if (t.dataset.set) return openSetCards(t.dataset.set, t.dataset.name);
@@ -895,7 +895,7 @@ $('#prod-modal').addEventListener('click', e => {
   if (a === 'add' && p && addToCart(p.id, prodQty)) { toast(`${prodQty}x ${p.nome} adicionado ao carrinho.`); closeProduct(); if (tab === 'store') renderStore(); return; }
   if (a === 'ask' && p) {
     if (WHATSAPP.includes('X')) return alert('Defina o número de WhatsApp da loja.');
-    window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Olá, M44 TCG! Tenho interesse no produto ${p.nome} (${prodQty}x).`)}`, '_blank');
+    window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Olá, NORDEX TCG! Tenho interesse no produto ${p.nome} (${prodQty}x).`)}`, '_blank');
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProduct(); });
@@ -959,7 +959,7 @@ $('#cart-modal').addEventListener('click', e => {
     const name = ($('#cart-name').value || '').trim(), obs = ($('#cart-obs').value || '').trim();
     if (name) LS.set('pk-cart-name', name);
     const total = lines.reduce((n, p) => n + p.preco * cart[p.id], 0);
-    const msg = 'Olá, M44 TCG! Quero fazer este pedido:\n' + lines.map(p => `- ${cart[p.id]}x ${p.nome} (${brl(p.preco)})`).join('\n') + `\nTotal: ${brl(total)}` + (name ? `\nNome: ${name}` : '') + (obs ? `\nObs.: ${obs}` : '');
+    const msg = 'Olá, NORDEX TCG! Quero fazer este pedido:\n' + lines.map(p => `- ${cart[p.id]}x ${p.nome} (${brl(p.preco)})`).join('\n') + `\nTotal: ${brl(total)}` + (name ? `\nNome: ${name}` : '') + (obs ? `\nObs.: ${obs}` : '');
     window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
   }
 });

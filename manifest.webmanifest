@@ -1,10 +1,10 @@
 {
- "name": "M44 TCG",
- "short_name": "M44 TCG",
+ "name": "NORDEX TCG",
+ "short_name": "NORDEX TCG",
  "display": "standalone",
  "start_url": "./",
- "background_color": "#0a1126",
- "theme_color": "#0a1126",
+ "background_color": "#121212",
+ "theme_color": "#121212",
  "icons": [
   {
    "src": "icons/icon-192.png",
