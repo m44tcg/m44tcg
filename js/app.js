@@ -267,13 +267,11 @@ const visibleSetGroups = () => setData.filter(g => seriesSel === 'all' || +serie
 function setTileHTML(c) {
   const on = setCol.has(c.id);
   return `<div class="slot set-tile ${on ? 'on' : 'off'}">
-    <div class="set-tile__logo">${c.image ? `<img src="${esc(c.image)}" alt="Logo ${esc(c.name)}" loading="lazy" decoding="async" onerror="this.closest('.slot')?.remove()">` : `<span class="set-tile__ph">TCG</span>`}</div>
-    <span class="set-tile__name">${esc(c.name)}</span>
-    <span class="set-tile__meta">${esc(c.number)}</span>
-    <div class="set-tile__acts">
-      <button type="button" data-view-set="${esc(c.sourceId)}" data-set-name="${esc(c.name)}">Ver cartas</button>
-      <button type="button" data-setid="${esc(c.id)}" aria-pressed="${on}" aria-label="${on ? 'Remover' : 'Marcar'} expansão ${esc(c.name)}">${on ? '✓ Tenho' : '＋ Marcar'}</button>
-    </div>
+    <button type="button" class="set-tile__main" data-view-set="${esc(c.sourceId)}" data-set-name="${esc(c.name)}" title="Ver cartas de ${esc(c.name)}">
+      <span class="set-tile__logo">${c.image ? `<img src="${esc(c.image)}" alt="" loading="lazy" decoding="async" onerror="this.closest('.slot')?.remove()">` : `<span class="set-tile__ph">TCG</span>`}</span>
+      <span class="set-tile__txt"><span class="set-tile__name">${esc(c.name)}</span><span class="set-tile__meta">${esc(c.number)}</span></span>
+    </button>
+    <button type="button" class="set-tile__chk" data-setid="${esc(c.id)}" aria-pressed="${on}" aria-label="${on ? 'Remover' : 'Marcar'} expansão ${esc(c.name)}" title="${on ? 'Na sua coleção' : 'Marcar como minha'}">${on ? '✓' : '＋'}</button>
   </div>`;
 }
 function renderSets() {
@@ -404,7 +402,7 @@ $('#gens').addEventListener('click', e => {
     if (statusSel !== 'all') return renderSets();
     const on = setCol.has(id), tile = sb.closest('.set-tile');
     tile?.classList.toggle('on', on); tile?.classList.toggle('off', !on);
-    sb.setAttribute('aria-pressed', on); sb.textContent = on ? '✓ Tenho' : '＋ Marcar';
+    sb.setAttribute('aria-pressed', on); sb.textContent = on ? '✓' : '＋'; sb.title = on ? 'Na sua coleção' : 'Marcar como minha';
     statsSets();
     return;
   }
