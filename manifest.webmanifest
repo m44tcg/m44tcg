@@ -1,6 +1,6 @@
 {
- "name": "NORDEX TCG",
- "short_name": "NORDEX TCG",
+ "name": "NORDEX",
+ "short_name": "NORDEX",
  "display": "standalone",
  "start_url": "./",
  "background_color": "#121212",
