@@ -212,3 +212,9 @@ body{background:radial-gradient(800px 460px at 88% -150px,rgba(124,58,237,.16),t
   .col-sel{width:100%}
   .col-tools{margin-left:0;width:100%}.col-tools .col-btn{flex:1}
 }
+
+/* Vitrine M44: cartas avulsas mostradas inteiras (proporção de carta) */
+.pcard__img--carta{aspect-ratio:245/342}
+.pcard__img--carta img:not(.pcard__ph){object-fit:contain;padding:10px}
+.vit__zoom{display:block;width:100%;height:100%;cursor:zoom-in;background:none;border:0;padding:0}
+.vit__nota{margin:0;font-size:13px;line-height:1.35;color:var(--muted)}

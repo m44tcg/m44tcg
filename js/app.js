@@ -469,47 +469,35 @@ const PRODUCTS = [ // edite nomes, preços e categorias da sua loja
 ];
 const PROMOS = [ // slides da vitrine: edite títulos, textos e destinos (cat:Categoria, tab:trades, scroll:id)
   { titulo: 'Semana de boosters', texto: 'Boosters e boxes com preço especial por tempo limitado.', btn: 'Ver boosters', go: 'cat:Boosters' },
-  { titulo: 'Cartas raras em alta', texto: 'Veja quais cartas estão valorizadas no mercado agora.', btn: 'Ver destaques', go: 'scroll:store-destaques' },
+  { titulo: 'Vitrine M44', texto: 'Confira as cartas e produtos que estamos destacando agora.', btn: 'Ver vitrine', go: 'scroll:store-vitrine' },
   { titulo: 'Troque com outros treinadores', texto: 'Escaneie suas cartas e publique ofertas de troca.', btn: 'Ir para Trocas', go: 'tab:trades' },
 ];
-const HIGHLIGHTS = [ // img = "set/número" no pokemontcg.io; n = nº Pokédex (imagem reserva); busca = termo na Liga.
-  // Preço manual da Liga: acrescente preco: 123.45, data: '19/10/2026' na carta. Com PRICE_API configurada, o preço é atualizado sozinho.
-  { img: 'swsh7/215', n: 197, busca: 'Umbreon VMAX Evolving Skies', nome: 'Umbreon VMAX (Alternate Art)', set: 'Evolving Skies · 215', tag: 'Em alta', nota: 'A famosa "Moonbreon", carta-referência da era moderna.' },
-  { img: 'sv3pt5/199', n: 6, busca: 'Charizard ex 199 Pokémon 151', nome: 'Charizard ex (Special Illustration Rare)', set: 'Pokémon 151 · 199', tag: 'Em alta', nota: 'Ganhou força com os 30 anos da franquia.' },
-  { img: 'sv8pt5/161', n: 197, busca: 'Umbreon ex 161 Prismatic Evolutions', nome: 'Umbreon ex (Special Illustration Rare)', set: 'Prismatic Evolutions · 161', tag: 'Em alta', nota: 'Chase card de um dos sets mais disputados.' },
-  { img: 'swsh8/271', n: 94, busca: 'Gengar VMAX 271 Fusion Strike', nome: 'Gengar VMAX (Alternate Art)', set: 'Fusion Strike · 271', tag: 'Em alta', nota: 'Gengar é um dos Pokémon que mais valorizam em cartas.' },
-  { img: 'ex8/107', n: 384, busca: 'Rayquaza Gold Star EX Deoxys', nome: 'Rayquaza ★ (Gold Star)', set: 'EX Deoxys · 107', tag: 'Rara', nota: 'Uma das Gold Stars mais cobiçadas.' },
-  { img: 'base1/4', n: 6, busca: 'Charizard Base Set', nome: 'Charizard', set: 'Base Set · 4', tag: 'Rara', nota: 'A carta mais icônica do início do jogo.' },
-  { img: 'sv3pt5/205', n: 151, busca: 'Mew ex 205 Pokémon 151', nome: 'Mew ex (Special Illustration Rare)', set: 'Pokémon 151 · 205', tag: 'Rara', nota: 'Outra chase card do set 151.' },
-];
-const HL_REF = { // valores de referência (15/10/2026), usados até a atualização automática chegar
-  'swsh7/215': { brl: 11436.21, usd: 2264.7, eur: 1579.48 }, 'sv3pt5/199': { brl: 1632.94, usd: 323.37, eur: 235.71 },
-  'sv8pt5/161': { brl: 6411.64, usd: 1269.69 }, 'swsh8/271': { brl: 5187.73, usd: 1027.32, eur: 962.3 },
-  'ex8/107': { brl: 12629.41, usd: 2500.99, eur: 3519.25 }, 'base1/4': { brl: 4820.76, usd: 954.65, eur: 4184.6 },
-  'sv3pt5/205': { brl: 126.45, usd: 25.04, eur: 16.63 },
-};
-const hlAuto = LS.get('pk-hl-cache', {});
-function hlPriceHTML(h) {
-  const a = hlAuto[h.img] || (HL_REF[h.img] && { mk: 1, ...HL_REF[h.img], data: '2026/10/15' });
-  if (a && a.mk) return `<p class="text-sm font-bold">${brl(a.brl)} <span class="font-normal text-xs text-slate-500">mercado</span></p>${a.usd ? `<p class="text-xs text-slate-500">US$ ${a.usd.toFixed(2)}${a.eur ? ` · € ${a.eur.toFixed(2)}` : ''}</p>` : ''}<p class="text-[11px] text-slate-400">TCGplayer/Cardmarket${a.data ? ' · ' + esc(a.data) : ''}</p>`;
-  if (a && a.avg) return `<p class="text-sm font-bold">${brl(a.avg)} <span class="font-normal text-xs text-slate-500">média</span></p>${a.min ? `<p class="text-xs text-slate-500">a partir de ${brl(a.min)}</p>` : ''}<p class="text-[11px] text-slate-400">Fonte: Liga Pokémon</p>`;
-  if (h.preco != null) return `<p class="text-sm font-bold">${brl(h.preco)}</p><p class="text-[11px] text-slate-400">Liga Pokémon${h.data ? ' · ' + esc(h.data) : ''}</p>`;
-  return '<p class="text-xs text-slate-500">Veja o preço na Liga Pokémon</p>';
+/* ---------- Vitrine (só o administrador monta; vem de data/loja.json) ----------
+   Cada item é { tipo:'produto', ref:'<id do produto>', tag } ou
+   { tipo:'carta', nome, set, preco, antes, tag, nota, img (foto enviada) ou tcg ("set/número" do pokemontcg.io) } */
+const VITRINE = [];
+const TCG_CODE = /^[\w-]+\/[\w-]+$/;
+const vitImg = (v, big) => v.img || (TCG_CODE.test(v.tcg || '') ? `https://images.pokemontcg.io/${v.tcg}${big ? '_hires' : ''}.png` : '');
+function vitCardHTML(v) {
+  if (v.tipo === 'produto') {
+    const p = PRODUCTS.find(x => x.id === v.ref);
+    return p ? pcardHTML(p, v.tag) : '';
+  }
+  if (!v.nome) return '';
+  const src = vitImg(v), big = vitImg(v, true), logo = $('#logo').src;
+  const pic = src
+    ? `<button type="button" class="vit__zoom" data-zoom="${esc(big)}" data-alt="${esc(v.nome)}" aria-label="Ampliar ${esc(v.nome)}"><img src="${esc(src)}" alt="${esc(v.nome)}" loading="lazy" onerror="this.onerror=null;this.src='${logo}'"></button>`
+    : `<img class="pcard__ph" src="${logo}" alt="">`;
+  return `<article class="pcard" aria-label="${esc(v.nome)}">
+    <div class="pcard__img pcard__img--carta">${pic}${v.tag ? `<span class="tag tag--low">${esc(v.tag)}</span>` : ''}</div>
+    <div class="pcard__body">
+      <p class="pcard__set">${esc(v.set || 'Carta avulsa')}</p>
+      <h3 class="pcard__name">${esc(v.nome)}</h3>
+      ${v.nota ? `<p class="vit__nota">${esc(v.nota)}</p>` : ''}
+      ${v.preco > 0 ? `<p class="price">${brl(v.preco)}${v.antes > 0 ? `<s>${brl(v.antes)}</s>` : ''}</p>` : '<p class="vit__nota">Consulte o preço no WhatsApp</p>'}
+      <button type="button" class="btn-buy" data-ask="${esc(v.nome)}">Tenho interesse</button>
+    </div></article>`;
 }
-async function loadHighlightPrices() {
-  if (HIGHLIGHTS.every(h => hlAuto[h.img] && hlAuto[h.img].mk && Date.now() - hlAuto[h.img].ts < 6 * 3600 * 1000)) return;
-  try {
-    const ids = HIGHLIGHTS.map(h => h.img.replace('/', '-')).join(',');
-    const j = await (await fetch(`/api/precos-destaques?ids=${encodeURIComponent(ids)}`)).json();
-    let changed = false;
-    for (const h of HIGHLIGHTS) {
-      const c = j.cards && j.cards[h.img.replace('/', '-')];
-      if (c && c.brl) { hlAuto[h.img] = { mk: 1, brl: c.brl, usd: c.usd, eur: c.eur, data: c.atualizado, ts: Date.now() }; changed = true; }
-    }
-    if (changed) { LS.set('pk-hl-cache', hlAuto); if (tab === 'store') renderStore(); }
-  } catch {}
-}
-const imgCard = (h, big) => `https://images.pokemontcg.io/${h.img.split('/')[0]}/${h.img.split('/')[1]}${big ? '_hires' : ''}.png`;
 function openZoom(src, alt) {
   const o = document.createElement('div');
   o.className = 'fixed inset-0 z-50 bg-black/80 grid place-items-center p-4 cursor-zoom-out';
@@ -581,37 +569,30 @@ function homeHTML() {
     </div>
     <div class="hero__media hero__reel" id="hero-reel" aria-hidden="true"></div>
   </section>`;
-  const dest = `<section id="store-destaques" class="mb-8 scroll-mt-32">
-    <h2 class="text-lg font-bold">Cartas raras em alta</h2>
-    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Para você ter noção do que está valorizado. Seleção de outubro de 2026 com base em guias de tendências do mercado; não são itens à venda. Os valores são de mercado internacional (TCGplayer/Cardmarket), convertidos para reais e atualizados automaticamente. Toque na carta para ampliar.</p>
-    <div class="flex gap-4 overflow-x-auto pb-2 snap-x">${HIGHLIGHTS.map(h => `<article class="snap-start shrink-0 w-48 ${card} p-3">
-        <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${h.tag === 'Em alta' ? 'bg-[#0050e6] text-white' : 'bg-[#e8f0ff] text-[#0050e6] dark:bg-[#0c1a3a] dark:text-[#6e9bff]'}">${esc(h.tag)}</span>
-        <button data-zoom="${imgCard(h, true)}" data-alt="${esc(h.nome)}" class="block w-full my-2 cursor-zoom-in" aria-label="Ampliar ${esc(h.nome)}">
-          <img src="${imgCard(h)}" alt="${esc(h.nome)}" loading="lazy" onerror="this.onerror=null;this.src='${ART(h.n)}'" class="w-full aspect-[245/342] object-contain rounded-lg"></button>
-        <h3 class="font-bold text-sm leading-snug">${esc(h.nome)}</h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400">${esc(h.set)}</p>
-        <div class="mt-1">${hlPriceHTML(h)}</div>
-        <p class="text-xs mt-1">${esc(h.nota)}</p>
-        <a href="${ligaUrl(h.busca)}" target="_blank" rel="noopener" class="inline-block mt-2 text-xs underline text-[#0050e6] dark:text-[#6e9bff]">Ver na Liga Pokémon</a>
-      </article>`).join('')}</div></section>`;
+  const vitItems = VITRINE.map(vitCardHTML).filter(Boolean);
+  const vit = (!vitItems.length && !isAdmin()) ? '' : `<section id="store-vitrine" class="mb-8 scroll-mt-32">
+    <h2 class="text-lg font-bold">Vitrine M44</h2>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Cartas e produtos em destaque, escolhidos pela loja.</p>
+    ${vitItems.length ? `<div class="pgrid">${vitItems.join('')}</div>` : `<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-sm text-center text-slate-500">A vitrine está vazia. <button type="button" data-open-admin class="underline font-semibold text-[#0050e6] dark:text-[#6e9bff]">Adicionar itens</button></div>`}
+  </section>`;
   const promo = PRODUCTS.filter(p => p.antes);
   const prom = promo.length ? `<section class="mb-8"><h2 class="text-lg font-bold mb-3">Promoções</h2>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">${promo.map(p => `<div data-prod="${esc(p.id)}" class="cursor-pointer flex items-center gap-3 p-4 ${card}">
       <span class="px-2 py-1 rounded-lg bg-[#0050e6] text-white text-sm font-bold">-${Math.round((1 - p.preco / p.antes) * 100)}%</span>
       <div class="flex-1 min-w-0"><h3 class="font-bold truncate">${esc(p.nome)}</h3><p class="text-sm"><strong>${brl(p.preco)}</strong> <s class="text-slate-400">${brl(p.antes)}</s></p></div>
       <button data-add="${p.id}" class="px-3 py-1.5 rounded-lg bg-[#0050e6] text-white text-sm font-semibold">Adicionar</button></div>`).join('')}</div></section>` : '';
-  return hero + prom + dest;
+  return hero + vit + prom;
 }
 
 let cart = LS.get('pk-cart', {}), storeCat = 'Todos';
 const brl = n => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const saveCart = () => { LS.set('pk-cart', cart); updateCartBadge(); if (!$('#cart-modal').classList.contains('hidden')) drawCart(); };
 
-const pcardHTML = p => { const out = p.estoque === 0, low = p.estoque > 0 && p.estoque <= 3, diff = p.liga > p.preco ? p.liga - p.preco : 0;
+const pcardHTML = (p, vtag) => { const out = p.estoque === 0, low = p.estoque > 0 && p.estoque <= 3, diff = p.liga > p.preco ? p.liga - p.preco : 0;
           return `<article class="pcard" data-prod="${esc(p.id)}" tabindex="0" aria-label="Ver detalhes de ${esc(p.nome)}">
           <div class="pcard__img">${p.img ? `<img src="${p.img}" alt="${esc(p.nome)}" loading="lazy">` : `<img class="pcard__ph" src="${$('#logo').src}" alt="">`}
             ${p.cond ? `<span class="tag tag--cond">${esc(p.cond)}</span>` : ''}
-            ${out ? '<span class="tag tag--out">Esgotado</span>' : low ? `<span class="tag tag--low">Últimas ${p.estoque}</span>` : p.antes ? `<span class="tag tag--low">-${Math.round((1 - p.preco / p.antes) * 100)}%</span>` : ''}</div>
+            ${out ? '<span class="tag tag--out">Esgotado</span>' : vtag ? `<span class="tag tag--low">${esc(vtag)}</span>` : low ? `<span class="tag tag--low">Últimas ${p.estoque}</span>` : p.antes ? `<span class="tag tag--low">-${Math.round((1 - p.preco / p.antes) * 100)}%</span>` : ''}</div>
           <div class="pcard__body">
             <p class="pcard__set">${esc(p.set || p.cat)}</p>
             <h3 class="pcard__name">${esc(p.nome)}</h3>
@@ -661,7 +642,7 @@ $('#store').addEventListener('click', e => {
     const [kind, val] = t.dataset.go.split(':');
     if (kind === 'tab') { tab = val; return render(); }
     if (kind === 'cat') { storeCat = val; renderStore(); return $('#store-produtos').scrollIntoView({ behavior: 'smooth' }); }
-    if (kind === 'scroll') return $('#' + val).scrollIntoView({ behavior: 'smooth' });
+    if (kind === 'scroll') return $('#' + (val === 'store-destaques' ? 'store-vitrine' : val))?.scrollIntoView({ behavior: 'smooth' });
     return;
   }
   if (t.dataset.ask) {
@@ -685,13 +666,14 @@ $('#store').addEventListener('click', e => {
 /* ---------- Administração da loja (seu Gmail) ---------- */
 const ADMIN_EMAILS = ['m44tcg@gmail.com']; // coloque aqui o(s) Gmail(s) administrador(es). Ex.: ['seuemail@gmail.com']
 const isAdmin = () => !!(user && user.google && ADMIN_EMAILS.some(e => String(e).toLowerCase() === user.email));
-const DEFAULT_STORE = JSON.parse(JSON.stringify({ produtos: PRODUCTS, promos: PROMOS, whatsapp: WHATSAPP }));
+const DEFAULT_STORE = JSON.parse(JSON.stringify({ produtos: PRODUCTS, promos: PROMOS, vitrine: VITRINE, whatsapp: WHATSAPP }));
 let storeCfg = null, ed = null;
 function applyStore() {
   const draft = isAdmin() ? LS.get('pk-store-draft', null) : null;
   const c = draft || storeCfg || DEFAULT_STORE;
   if (Array.isArray(c.produtos)) PRODUCTS.splice(0, PRODUCTS.length, ...c.produtos);
   if (Array.isArray(c.promos) && c.promos.length) PROMOS.splice(0, PROMOS.length, ...c.promos);
+  VITRINE.splice(0, VITRINE.length, ...(Array.isArray(c.vitrine) ? c.vitrine : []));
   if (c.whatsapp) WHATSAPP = c.whatsapp;
   heroIdx = 0;
   updateCartBadge();
@@ -715,7 +697,7 @@ const fld = (sec, i, k, label, val, ph = '', num = false) => `<label class="bloc
 const photoFld = (sec, i, img) => { const [W, H] = PHOTO_SIZE[sec] || [800, 800], box = sec === 'promos' ? 'w-40 aspect-[8/3]' : 'w-20 aspect-square';
   return `<div class="flex items-center gap-3 flex-wrap">${img ? `<img src="${img}" alt="" class="${box} rounded-lg object-cover border border-slate-200">` : `<div class="${box} rounded-lg bg-slate-100 dark:bg-slate-800 grid place-items-center text-[11px] text-slate-400">sem foto</div>`}<div><label class="inline-block px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-sm cursor-pointer">${img ? 'Trocar foto' : 'Adicionar foto'}<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" data-photo="${sec}:${i}"></label>${img ? ` <button type="button" data-rmphoto="${sec}:${i}" class="text-xs underline text-red-600">Remover</button>` : ''}<p class="text-[11px] text-slate-400 mt-1">Saída automática: ${W}×${H} px</p></div></div>`; };
 let photoMode = LS.get('pk-photomode', 'fit');
-const PHOTO_SIZE = { produtos: [800, 800], promos: [1600, 600] };
+const PHOTO_SIZE = { produtos: [800, 800], promos: [1600, 600], vitrine: [700, 980] };
 async function fileToDataUrl(file, sec) {
   if (!/^image\/(jpeg|png|webp|gif|bmp|avif)$/.test(file.type)) throw new Error('Escolha uma imagem JPG, PNG ou WebP (fotos HEIC do iPhone não são aceitas).');
   if (file.size > 25 * 1024 * 1024) throw new Error('Arquivo muito grande (máximo 25 MB).');
@@ -746,7 +728,7 @@ async function fileToDataUrl(file, sec) {
 }
 function drawAdmin() {
   const cats = [...new Set(ed.produtos.map(p => p.cat).filter(Boolean))];
-  const gos = [['', 'Sem destino'], ...cats.map(c => ['cat:' + c, 'Categoria: ' + c]), ['scroll:store-destaques', 'Cartas raras em alta'], ['scroll:store-produtos', 'Todos os produtos'], ['tab:trades', 'Aba Trocas']];
+  const gos = [['', 'Sem destino'], ...cats.map(c => ['cat:' + c, 'Categoria: ' + c]), ['scroll:store-vitrine', 'Vitrine'], ['scroll:store-produtos', 'Todos os produtos'], ['tab:trades', 'Aba Trocas']];
   const box = 'rounded-xl border border-slate-200 dark:border-slate-800 p-3 mb-3 space-y-2';
   $('#admin-body').innerHTML = `<div class="flex items-center mb-4"><h2 class="text-xl font-extrabold">Editar loja</h2><button data-act="close" class="ml-auto px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 font-bold" aria-label="Fechar">✕</button></div>
   <div class="${box}">${fld('root', 0, 'whatsapp', 'WhatsApp da loja (DDI + DDD + número, só dígitos)', ed.whatsapp, '5583999999999')}</div>
@@ -754,8 +736,16 @@ function drawAdmin() {
     <label class="flex items-start gap-2 text-sm"><input type="radio" name="photomode" value="fit" ${photoMode === 'fit' ? 'checked' : ''} class="mt-1"><span><strong>Mostrar inteira</strong> (recomendado): nada é cortado; sobras ficam na cor das bordas da foto.</span></label>
     <label class="flex items-start gap-2 text-sm"><input type="radio" name="photomode" value="fill" ${photoMode === 'fill' ? 'checked' : ''} class="mt-1"><span><strong>Preencher tudo</strong>: recorta o centro da foto para ocupar o espaço todo.</span></label>
     <p class="text-xs text-slate-500">Produtos ficam em 800×800 px (quadrado) e banners em 1600×600 px. A escolha vale para as próximas fotos enviadas.</p></div>
-  <h3 class="font-bold mt-4 mb-2">Banners da vitrine</h3>
-  ${ed.promos.map((b, i) => `<div class="${box}"><div class="grid sm:grid-cols-2 gap-2">${fld('promos', i, 'titulo', 'Título', b.titulo)}${fld('promos', i, 'btn', 'Texto do botão', b.btn)}</div>${fld('promos', i, 'texto', 'Texto', b.texto)}<label class="block text-xs font-semibold text-slate-500">Para onde o botão leva<select data-sec="promos" data-i="${i}" data-k="go" class="${INP} mt-1 font-normal">${gos.map(([v, l]) => `<option value="${esc(v)}" ${v === b.go ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>${photoFld('promos', i, b.img)}<button type="button" data-del="promos:${i}" class="text-xs underline text-red-600">Excluir banner</button></div>`).join('')}
+  <h3 class="font-bold mt-6 mb-1">Vitrine</h3>
+  <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Itens que aparecem em destaque no topo da loja. Só administradores veem este editor.</p>
+  ${(ed.vitrine = ed.vitrine || []).map((v, i) => `<div class="${box}"><div class="flex items-center gap-2"><span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800">${v.tipo === 'produto' ? 'Produto' : 'Carta'}</span><span class="ml-auto flex gap-1"><button type="button" data-mv="${i}:-1" class="h-7 w-7 rounded-lg border border-slate-300 dark:border-slate-700" aria-label="Mover para cima" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-mv="${i}:1" class="h-7 w-7 rounded-lg border border-slate-300 dark:border-slate-700" aria-label="Mover para baixo" ${i === ed.vitrine.length - 1 ? 'disabled' : ''}>↓</button></span></div>
+    ${v.tipo === 'produto'
+      ? `<label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Produto da loja<select data-sec="vitrine" data-i="${i}" data-k="ref" class="${INP} mt-1 font-normal"><option value="">Escolha um produto…</option>${ed.produtos.filter(p => p.nome).map(p => `<option value="${esc(p.id)}" ${p.id === v.ref ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>${fld('vitrine', i, 'tag', 'Etiqueta (opcional)', v.tag, 'Novo, Últimas unidades…')}`
+      : `<div class="grid sm:grid-cols-2 gap-2">${fld('vitrine', i, 'nome', 'Nome da carta', v.nome, 'Charizard ex')}${fld('vitrine', i, 'set', 'Expansão · número', v.set, 'Pokémon 151 · 199')}${fld('vitrine', i, 'preco', 'Preço (R$, opcional)', v.preco, '120,00', true)}${fld('vitrine', i, 'antes', 'Preço antigo (opcional)', v.antes, '150,00', true)}${fld('vitrine', i, 'tag', 'Etiqueta (opcional)', v.tag, 'Rara, Nova…')}${fld('vitrine', i, 'tcg', 'Imagem automática (opcional)', v.tcg, 'sv3pt5/199')}</div>${fld('vitrine', i, 'nota', 'Observação (condição, idioma, detalhes)', v.nota)}${photoFld('vitrine', i, v.img)}<p class="text-[11px] text-slate-400">Use a foto enviada ou o código "set/número" do pokemontcg.io; a foto enviada tem prioridade.</p>`}
+    <button type="button" data-del="vitrine:${i}" class="text-xs underline text-red-600">Remover da vitrine</button></div>`).join('')}
+  <div class="flex flex-wrap gap-2"><button data-add="vit-produto" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold">+ Produto na vitrine</button><button data-add="vit-carta" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold">+ Carta na vitrine</button></div>
+  <h3 class="font-bold mt-6 mb-2">Banners</h3>
+  ${ed.promos.map((b, i) => `<div class="${box}"><div class="grid sm:grid-cols-2 gap-2">${fld('promos', i, 'titulo', 'Título', b.titulo)}${fld('promos', i, 'btn', 'Texto do botão', b.btn)}</div>${fld('promos', i, 'texto', 'Texto', b.texto)}<label class="block text-xs font-semibold text-slate-500">Para onde o botão leva<select data-sec="promos" data-i="${i}" data-k="go" class="${INP} mt-1 font-normal">${gos.map(([v, l]) => `<option value="${esc(v)}" ${v === (b.go === 'scroll:store-destaques' ? 'scroll:store-vitrine' : b.go) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>${photoFld('promos', i, b.img)}<button type="button" data-del="promos:${i}" class="text-xs underline text-red-600">Excluir banner</button></div>`).join('')}
   <button data-add="promos" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold">+ Novo banner</button>
   <h3 class="font-bold mt-6 mb-2">Produtos</h3>
   ${ed.produtos.map((p, i) => `<div class="${box}"><div class="grid sm:grid-cols-2 gap-2">${fld('produtos', i, 'nome', 'Nome', p.nome)}${fld('produtos', i, 'cat', 'Categoria', p.cat, 'Boosters, Decks…')}${fld('produtos', i, 'set', 'Expansão · número', p.set, 'Scarlet & Violet 151 · 199/165')}${fld('produtos', i, 'cond', 'Condição', p.cond, 'NM')}${fld('produtos', i, 'liga', 'Preço na Liga (R$)', p.liga, 'opcional', true)}${fld('produtos', i, 'preco', 'Preço (R$)', p.preco, '24,90', true)}${fld('produtos', i, 'antes', 'Preço antigo (opcional, mostra desconto)', p.antes, '29,90', true)}${fld('produtos', i, 'estoque', 'Estoque (opcional; 0 = esgotado)', p.estoque, 'ex.: 12', true)}</div>${fld('produtos', i, 'desc', 'Descrição', p.desc)}${photoFld('produtos', i, p.img)}<button type="button" data-del="produtos:${i}" class="text-xs underline text-red-600">Excluir produto</button></div>`).join('')}
@@ -765,13 +755,14 @@ function drawAdmin() {
     <button data-act="download" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold text-sm">Baixar loja.json (para publicar)</button>
     <button data-act="discard" class="px-4 py-2 rounded-lg text-sm underline text-slate-500">Descartar alterações salvas</button></div>`;
 }
-function openAdmin() { ed = JSON.parse(JSON.stringify({ produtos: PRODUCTS, promos: PROMOS, whatsapp: WHATSAPP })); drawAdmin(); const m = $('#admin-modal'); m.classList.remove('hidden'); m.classList.add('flex'); }
+function openAdmin() { ed = JSON.parse(JSON.stringify({ produtos: PRODUCTS, promos: PROMOS, vitrine: VITRINE, whatsapp: WHATSAPP })); drawAdmin(); const m = $('#admin-modal'); m.classList.remove('hidden'); m.classList.add('flex'); }
 function closeAdmin() { const m = $('#admin-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
 function cleanCfg() {
   return { produtos: ed.produtos.filter(p => p.nome && p.preco > 0).map(p => ({ ...p, id: p.id || 'p' + Date.now() + Math.random().toString(36).slice(2, 5) })),
-    promos: ed.promos.filter(b => b.titulo), whatsapp: String(ed.whatsapp || '').replace(/\D/g, '') || WHATSAPP };
+    promos: ed.promos.filter(b => b.titulo),
+    vitrine: (ed.vitrine || []).filter(v => v.tipo === 'produto' ? v.ref : v.nome), whatsapp: String(ed.whatsapp || '').replace(/\D/g, '') || WHATSAPP };
 }
-document.addEventListener('click', e => { if (e.target.closest('#btn-admin')) openAdmin(); });
+document.addEventListener('click', e => { if (e.target.closest('#btn-admin, [data-open-admin]')) openAdmin(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdmin(); });
 $('#admin-body').addEventListener('input', e => {
   const t = e.target; if (!t.dataset.k) return;
@@ -793,6 +784,9 @@ $('#admin-body').addEventListener('click', e => {
   if (t.dataset.del) { const [sec, i] = t.dataset.del.split(':'); if (confirm('Excluir este item?')) { ed[sec].splice(+i, 1); drawAdmin(); } return; }
   if (t.dataset.rmphoto) { const [sec, i] = t.dataset.rmphoto.split(':'); delete ed[sec][+i].img; drawAdmin(); return; }
   if (t.dataset.add === 'produtos') { ed.produtos.push({ id: 'p' + Date.now(), nome: '', cat: ed.produtos[0]?.cat || 'Boosters', preco: 0, desc: '' }); drawAdmin(); return; }
+  if (t.dataset.mv) { const [i, d] = t.dataset.mv.split(':').map(Number), j = i + d; if (ed.vitrine[j]) { [ed.vitrine[i], ed.vitrine[j]] = [ed.vitrine[j], ed.vitrine[i]]; drawAdmin(); } return; }
+  if (t.dataset.add === 'vit-produto') { (ed.vitrine ||= []).push({ tipo: 'produto', ref: '' }); drawAdmin(); return; }
+  if (t.dataset.add === 'vit-carta') { (ed.vitrine ||= []).push({ tipo: 'carta', nome: '', set: '', preco: 0 }); drawAdmin(); return; }
   if (t.dataset.add === 'promos') { ed.promos.push({ titulo: '', texto: '', btn: 'Ver mais', go: '' }); drawAdmin(); return; }
   const a = t.dataset.act;
   if (a === 'close') return closeAdmin();
@@ -1688,5 +1682,4 @@ loadData();
 preloadAllTcgCards();
 loadSets();
 render();
-loadHighlightPrices();
 loadStoreConfig();
