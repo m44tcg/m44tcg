@@ -1,11 +1,16 @@
 import type { Config } from '@netlify/functions'
 import { getUser } from '@netlify/identity'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { tradeOffers } from '../../db/schema.js'
 
 // Anúncios de troca compartilhados: todos veem, só usuários logados publicam e só o dono remove.
 const MAX_POR_USUARIO = 50
+const MAX_VITRINE = 24
+// Mesmos e-mails de ADMIN_EMAILS em js/app.js: só eles montam a vitrine da página inicial.
+const ADMIN_EMAILS = ['m44tcg@gmail.com']
+const isAdmin = (u: { email?: string, provider?: string } | null) =>
+  !!u && u.provider === 'google' && ADMIN_EMAILS.includes(String(u.email || '').toLowerCase())
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
 // Só imagens https de hosts conhecidos (evita rastreadores e conteúdo malicioso nos anúncios).
@@ -44,6 +49,7 @@ const cleanCond = (v: unknown) => (typeof v === 'string' && CONDICOES.includes(v
 const toJson = (r: typeof tradeOffers.$inferSelect, userId?: string) => ({
   id: String(r.id), ownerName: r.ownerName, mine: !!userId && r.ownerId === userId,
   give: r.giveId, giveCard: r.giveCard, want: r.wantId, wantCard: r.wantCard, createdAt: r.createdAt,
+  featured: !!r.featuredAt,
 })
 
 export default async (req: Request) => {
@@ -51,6 +57,12 @@ export default async (req: Request) => {
   const user = await getUser()
 
   if (req.method === 'GET') {
+    // Vitrine pública da página inicial: só os anúncios destacados pelo administrador.
+    if (new URL(req.url).searchParams.get('vitrine')) {
+      const rows = await db.select().from(tradeOffers).where(isNotNull(tradeOffers.featuredAt))
+        .orderBy(asc(tradeOffers.featuredAt)).limit(MAX_VITRINE)
+      return Response.json({ offers: rows.map(r => toJson(r, user?.id)) }, { headers: { 'Cache-Control': 'no-store' } })
+    }
     const rows = await db.select().from(tradeOffers).orderBy(desc(tradeOffers.createdAt)).limit(300)
     return Response.json({ offers: rows.map(r => toJson(r, user?.id)) }, { headers: { 'Cache-Control': 'no-store' } })
   }
@@ -98,6 +110,23 @@ export default async (req: Request) => {
     }
     const [row] = await db.update(tradeOffers).set({ giveId: base.id, giveCard: { ...base, price, condition, note } })
       .where(and(eq(tradeOffers.id, id), eq(tradeOffers.ownerId, user.id))).returning()
+    return Response.json({ offer: toJson(row, user.id) })
+  }
+
+  // Vitrine: o administrador coloca ou tira qualquer anúncio (dele ou de outros treinadores).
+  if (req.method === 'PATCH') {
+    if (!isAdmin(user)) return Response.json({ error: 'Só o administrador da loja monta a vitrine.' }, { status: 403 })
+    const id = Number(new URL(req.url).searchParams.get('id'))
+    if (!Number.isInteger(id)) return Response.json({ error: 'Anúncio inválido.' }, { status: 400 })
+    const body = await req.json().catch(() => null)
+    const on = body?.featured === true
+    if (on) {
+      const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(tradeOffers).where(isNotNull(tradeOffers.featuredAt))
+      if (n >= MAX_VITRINE) return Response.json({ error: `A vitrine já tem ${MAX_VITRINE} cartas. Remova alguma antes.` }, { status: 400 })
+    }
+    const [row] = await db.update(tradeOffers).set({ featuredAt: on ? new Date() : null })
+      .where(eq(tradeOffers.id, id)).returning()
+    if (!row) return Response.json({ error: 'Anúncio não encontrado.' }, { status: 404 })
     return Response.json({ offer: toJson(row, user.id) })
   }
 
