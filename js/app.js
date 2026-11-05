@@ -46,13 +46,22 @@ const saveSets = () => LS.set('pk-sets-' + uid(), [...setCol]);
 const saveExp = () => LS.set('pk-expcards-' + uid(), [...expansionCardCol]);
 const saveCol = () => LS.set(colKey(), [...col]);
 
-/* ---------- Tema ---------- */
-function applyTheme(dark) {
-  document.documentElement.classList.toggle('dark', dark);
-  LS.set('pk-dark', dark);
+/* ---------- Tema (somente escuro) ---------- */
+document.documentElement.classList.add('dark');
+try { localStorage.removeItem('pk-dark'); } catch {}
+
+/* ---------- Menu do celular ---------- */
+const menuBtn = $('#btn-menu'), mnav = $('#mnav');
+function setMenu(open) {
+  mnav.classList.toggle('is-open', open);
+  menuBtn.setAttribute('aria-expanded', open);
+  menuBtn.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
 }
-applyTheme(LS.get('pk-dark', true));
-$('#btn-theme').onclick = () => applyTheme(!document.documentElement.classList.contains('dark'));
+menuBtn.onclick = () => setMenu(!mnav.classList.contains('is-open'));
+mnav.addEventListener('click', e => { if (e.target.closest('.tab')) setMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+document.addEventListener('click', e => { if (!e.target.closest('.site-head')) setMenu(false); });
+matchMedia('(min-width:721px)').addEventListener('change', e => { if (e.matches) setMenu(false); });
 
 /* ---------- Login com Google (Netlify Identity) ---------- */
 let identityLib = null;
@@ -91,8 +100,7 @@ async function logoutUser() {
 }
 function renderUser() {
   applyStore();
-  const mt = document.querySelector('[data-tab="mine"]'); if (mt) mt.style.display = user ? '' : 'none';
-  const ct = document.querySelector('[data-tab="chat"]'); if (ct) ct.style.display = user ? '' : 'none';
+  document.querySelectorAll('[data-tab="mine"],[data-tab="chat"]').forEach(b => b.style.display = user ? '' : 'none');
   if (!user && (tab === 'mine' || tab === 'chat')) tab = 'store';
   const a = $('#user-area');
   if (user) {
