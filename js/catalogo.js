@@ -365,7 +365,7 @@
   }
   window.M44Catalogo = { add: addItem };
 
-  // ---------- baixar catálogo como imagens (PNG) ----------
+  // ---------- baixar catálogo como imagens (JPG) ----------
   const W = 1080, H = 1350, PAD = 40, GAP = 16, COLS = 4, ROWS = 3, PER = COLS * ROWS;
   const tryLoad = src => new Promise(res => {
     const im = new Image(); im.crossOrigin = 'anonymous';
@@ -408,41 +408,51 @@
     x.beginPath(); x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h, r); x.arcTo(px + w, py + h, px, py + h, r);
     x.arcTo(px, py + h, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath();
   }
-  function drawPage(d, pg, n, total, imgs) {
+  function drawPage(d, pg, n, total, imgs, logo) {
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d'), have = pg.type === 'have';
-    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a1126'); g.addColorStop(1, '#0f1d45');
-    x.fillStyle = g; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#004de9'; x.fillRect(0, 0, W, 8);
-    // cabeçalho
-    x.fillStyle = '#fff'; x.textBaseline = 'alphabetic'; x.font = '800 46px "Barlow Condensed", Outfit, sans-serif';
-    x.fillText(fit(x, titleOf(d), W - 2 * PAD - 120), PAD, 84);
-    x.font = '700 22px Outfit, sans-serif'; x.fillStyle = '#94a3b8'; x.textAlign = 'right'; x.fillText(`${n}/${total}`, W - PAD, 80); x.textAlign = 'left';
+    // fundo no padrão NORDEX: preto quente com brilhos carmim/laranja
+    x.fillStyle = '#121212'; x.fillRect(0, 0, W, H);
+    const g1 = x.createRadialGradient(W * .85, -60, 0, W * .85, -60, 720); g1.addColorStop(0, 'rgba(201,31,49,.30)'); g1.addColorStop(1, 'rgba(201,31,49,0)');
+    x.fillStyle = g1; x.fillRect(0, 0, W, H);
+    const g2 = x.createRadialGradient(-80, H + 40, 0, -80, H + 40, 760); g2.addColorStop(0, 'rgba(236,108,36,.20)'); g2.addColorStop(1, 'rgba(236,108,36,0)');
+    x.fillStyle = g2; x.fillRect(0, 0, W, H);
+    const gb = x.createLinearGradient(0, 0, W, 0); gb.addColorStop(0, '#C91F31'); gb.addColorStop(.55, '#EC6C24'); gb.addColorStop(1, '#FAB941');
+    x.fillStyle = gb; x.fillRect(0, 0, W, 8);
+    // cabeçalho com logomarca
+    const LG = 64, tx = logo ? PAD + LG + 18 : PAD;
+    if (logo) x.drawImage(logo, PAD, 30, LG, LG);
+    x.fillStyle = '#fbefdc'; x.textBaseline = 'alphabetic'; x.font = '800 46px "Barlow Condensed", Outfit, sans-serif';
+    x.fillText(fit(x, titleOf(d), W - PAD - tx - 120), tx, 80);
+    x.font = '400 16px "Space Mono", monospace'; x.fillStyle = '#FAB941'; x.fillText('NORDEX · CATÁLOGO', tx, 102);
+    x.font = '700 22px "Space Mono", Outfit, monospace'; x.fillStyle = '#cfae8e'; x.textAlign = 'right'; x.fillText(`${n}/${total}`, W - PAD, 78); x.textAlign = 'left';
     const label = have ? 'TENHO · venda ou troca' : 'PROCURO · compra ou troca';
     x.font = '700 20px Outfit, sans-serif'; const lw = x.measureText(label).width + 32;
-    x.fillStyle = have ? '#10b981' : '#f59e0b'; rr(x, PAD, 104, lw, 38, 19); x.fill();
-    x.fillStyle = '#04122e'; x.fillText(label, PAD + 16, 130);
+    x.fillStyle = have ? '#C91F31' : '#FAB941'; rr(x, PAD, 116, lw, 38, 19); x.fill();
+    x.fillStyle = have ? '#fff' : '#1a0f0a'; x.fillText(label, PAD + 16, 142);
     // grade
-    const top = 170, cw = (W - 2 * PAD - (COLS - 1) * GAP) / COLS, rh = (H - 80 - top - (ROWS - 1) * GAP) / ROWS;
+    const top = 176, cw = (W - 2 * PAD - (COLS - 1) * GAP) / COLS, rh = (H - 80 - top - (ROWS - 1) * GAP) / ROWS;
     pg.its.forEach((it, k) => {
       const cx = PAD + (k % COLS) * (cw + GAP), cy = top + Math.floor(k / COLS) * (rh + GAP);
-      x.fillStyle = '#131d3b'; rr(x, cx, cy, cw, rh, 14); x.fill();
-      x.strokeStyle = '#22305c'; x.lineWidth = 1.5; x.stroke();
+      x.fillStyle = '#1e1713'; rr(x, cx, cy, cw, rh, 14); x.fill();
+      x.strokeStyle = '#3b2a21'; x.lineWidth = 1.5; x.stroke();
       const bx = cx + 10, by = cy + 10, bw = cw - 20, bh = 222, im = imgs.get(it.id);
       if (im) { const sc = Math.min(bw / im.width, bh / im.height), iw = im.width * sc, ih = im.height * sc; x.drawImage(im, bx + (bw - iw) / 2, by + (bh - ih) / 2, iw, ih); }
-      else { x.fillStyle = '#1b2a55'; rr(x, bx + bw / 2 - 80, by + 10, 160, bh - 20, 10); x.fill(); x.fillStyle = '#64748b'; x.font = '600 15px Outfit, sans-serif'; x.textAlign = 'center'; x.fillText('Sem imagem', bx + bw / 2, by + bh / 2 + 5); x.textAlign = 'left'; }
-      if ((+it.qty || 1) > 1) { x.fillStyle = '#004de9'; rr(x, cx + 10, cy + 10, 46, 26, 13); x.fill(); x.fillStyle = '#fff'; x.font = '700 15px Outfit, sans-serif'; x.textAlign = 'center'; x.fillText(`${it.qty}x`, cx + 33, cy + 28); x.textAlign = 'left'; }
-      x.fillStyle = '#fff'; x.font = '700 19px Outfit, sans-serif'; x.fillText(fit(x, it.name, cw - 20), cx + 10, cy + 262);
-      x.fillStyle = '#94a3b8'; x.font = '400 14px Outfit, sans-serif';
+      else { x.fillStyle = '#2a1f19'; rr(x, bx + bw / 2 - 80, by + 10, 160, bh - 20, 10); x.fill(); x.fillStyle = '#8a6f5c'; x.font = '600 15px Outfit, sans-serif'; x.textAlign = 'center'; x.fillText('Sem imagem', bx + bw / 2, by + bh / 2 + 5); x.textAlign = 'left'; }
+      if ((+it.qty || 1) > 1) { x.fillStyle = '#C91F31'; rr(x, cx + 10, cy + 10, 46, 26, 13); x.fill(); x.fillStyle = '#fff'; x.font = '700 15px Outfit, sans-serif'; x.textAlign = 'center'; x.fillText(`${it.qty}x`, cx + 33, cy + 28); x.textAlign = 'left'; }
+      x.fillStyle = '#fbefdc'; x.font = '700 19px Outfit, sans-serif'; x.fillText(fit(x, it.name, cw - 20), cx + 10, cy + 262);
+      x.fillStyle = '#cfae8e'; x.font = '400 14px Outfit, sans-serif';
       x.fillText(fit(x, [it.set, it.number ? '#' + it.number : '', it.cond].filter(Boolean).join(' · '), cw - 20), cx + 10, cy + 285);
       const ml = MODES[it.type][it.mode]; x.font = '700 13px Outfit, sans-serif'; const mw = x.measureText(ml).width + 18;
-      x.fillStyle = 'rgba(0,77,233,.35)'; rr(x, cx + 10, cy + rh - 40, mw, 26, 13); x.fill(); x.fillStyle = '#cfe0ff'; x.fillText(ml, cx + 19, cy + rh - 22);
-      if (it.price) { x.fillStyle = '#fff'; x.font = '700 17px Outfit, sans-serif'; x.textAlign = 'right'; x.fillText(brl(it.price), cx + cw - 10, cy + rh - 21); x.textAlign = 'left'; }
+      x.fillStyle = 'rgba(236,108,36,.18)'; rr(x, cx + 10, cy + rh - 40, mw, 26, 13); x.fill(); x.strokeStyle = 'rgba(236,108,36,.55)'; x.lineWidth = 1; x.stroke(); x.fillStyle = '#FAB941'; x.fillText(ml, cx + 19, cy + rh - 22);
+      if (it.price) { x.fillStyle = '#FAB941'; x.font = '700 17px "Space Mono", Outfit, monospace'; x.textAlign = 'right'; x.fillText(brl(it.price), cx + cw - 10, cy + rh - 21); x.textAlign = 'left'; }
     });
     // rodapé
-    x.fillStyle = '#22305c'; x.fillRect(PAD, H - 66, W - 2 * PAD, 1.5);
-    x.fillStyle = '#fff'; x.font = '800 24px "Barlow Condensed", Outfit, sans-serif'; x.fillText('M44 TCG' + (d.owner ? ' · ' + d.owner : ''), PAD, H - 28);
-    if (d.phone) { x.font = '600 20px Outfit, sans-serif'; x.fillStyle = '#cfe0ff'; x.textAlign = 'right'; x.fillText('WhatsApp: ' + d.phone, W - PAD, H - 28); x.textAlign = 'left'; }
+    x.fillStyle = '#3b2a21'; x.fillRect(PAD, H - 66, W - 2 * PAD, 1.5);
+    let fx = PAD; if (logo) { x.drawImage(logo, PAD, H - 56, 34, 34); fx += 44; }
+    x.font = '800 26px "Barlow Condensed", Outfit, sans-serif'; x.fillStyle = '#fbefdc'; x.fillText('NORDEX', fx, H - 28);
+    if (d.owner) { const ow = x.measureText('NORDEX').width; x.font = '600 20px Outfit, sans-serif'; x.fillStyle = '#cfae8e'; x.fillText(fit(x, ' · ' + d.owner, W / 2 - fx - ow), fx + ow, H - 28); }
+    if (d.phone) { x.font = '600 20px Outfit, sans-serif'; x.fillStyle = '#FAB941'; x.textAlign = 'right'; x.fillText('WhatsApp: ' + d.phone, W - PAD, H - 28); x.textAlign = 'left'; }
     return new Promise(res => c.toBlob(res, 'image/jpeg', 0.92));
   }
   function download(blob, name) {
@@ -452,7 +462,8 @@
   async function exportImages(d) {
     if (!d.items.length) return toast('Seu catálogo está vazio.');
     toast('Gerando imagens... buscando as fotos das cartas');
-    try { await Promise.all(['400 20px Outfit', '700 20px Outfit', '800 20px "Barlow Condensed"'].map(f => document.fonts.load(f))); } catch { /* usa fonte reserva */ }
+    try { await Promise.all(['400 20px Outfit', '700 20px Outfit', '800 20px "Barlow Condensed"', '400 16px "Space Mono"', '700 16px "Space Mono"'].map(f => document.fonts.load(f))); } catch { /* usa fonte reserva */ }
+    const logo = await tryLoad('assets/logo-branca.png');
     const imgs = new Map(); let found = false;
     await pool(d.items, async it => {
       if (!it.img) { const u = await findImg(it); if (u) { it.img = u; found = true; } }
@@ -464,9 +475,9 @@
     const slug = normTxt(d.name && d.name !== 'Meu catálogo' ? d.name : d.owner).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'colecionador';
     const files = [];
     for (let k = 0; k < pages.length; k++) {
-      const blob = await drawPage(d, pages[k], k + 1, pages.length, imgs);
+      const blob = await drawPage(d, pages[k], k + 1, pages.length, imgs, logo);
       if (!blob) { toast('Não foi possível gerar a imagem neste navegador.'); return; }
-      files.push(new File([blob], `catalogo-m44-${slug}-${pages[k].type === 'have' ? 'tenho' : 'procuro'}-${k + 1}.jpg`, { type: 'image/jpeg' }));
+      files.push(new File([blob], `catalogo-nordex-${slug}-${pages[k].type === 'have' ? 'tenho' : 'procuro'}-${k + 1}.jpg`, { type: 'image/jpeg' }));
     }
     // Celular: abre o menu de compartilhar (iPhone: "Salvar imagem"; Android: Galeria/Fotos).
     if (canShareFiles(files)) { await askSave(files); return; }
@@ -495,7 +506,7 @@
         if (!act) { if (e.target === o) close(); return; }
         if (act === 'close') return close();
         if (act === 'dl') { close(); return downloadAll(files); }
-        try { await navigator.share({ files, title: 'Catálogo M44 TCG' }); close(); }
+        try { await navigator.share({ files, title: 'Catálogo NORDEX' }); close(); }
         catch (err) { if (err.name !== 'AbortError') { close(); toast('Não foi possível abrir o compartilhamento. Baixando os arquivos...'); downloadAll(files); } }
       });
       document.body.appendChild(o);
