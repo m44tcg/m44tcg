@@ -11,7 +11,9 @@ export const tradeOffers = pgTable("trade_offers", {
   wantId: text("want_id"),
   wantCard: jsonb("want_card"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, t => [index("trade_offers_owner_idx").on(t.ownerId)]);
+  // Preenchido quando o administrador coloca a carta na vitrine da página inicial.
+  featuredAt: timestamp("featured_at"),
+}, t => [index("trade_offers_owner_idx").on(t.ownerId), index("trade_offers_featured_idx").on(t.featuredAt)]);
 
 // Chat privado: uma conversa por (anúncio, interessado) entre o anunciante e o interessado.
 // Guarda um "retrato" da carta e dos nomes para a conversa continuar legível se o anúncio for removido.

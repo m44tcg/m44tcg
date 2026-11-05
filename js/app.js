@@ -506,6 +506,46 @@ function vitCardHTML(v) {
       <button type="button" class="btn-buy" data-ask="${esc(v.nome)}">Tenho interesse</button>
     </div></article>`;
 }
+/* Cartas das abas Trocas e Minhas Cartas destacadas pelo administrador (vêm do banco via /api/trocas?vitrine=1) */
+let VIT_OFFERS = [];
+async function loadVitrineOffers() {
+  try {
+    const r = await fetch('/api/trocas?vitrine=1', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    VIT_OFFERS = (await r.json()).offers || [];
+    if (tab === 'store') renderStore();
+  } catch {}
+}
+const hiresOf = u => /^https:\/\/images\.pokemontcg\.io\/.+[^_]\.png$/.test(u) && !u.includes('_hires') ? u.replace(/\.png$/, '_hires.png') : u;
+function vitOfferHTML(o) {
+  const c = o.giveCard || {};
+  if (!c.name || !c.image) return '';
+  const logo = $('#logo').src, cond = c.condition && COND[c.condition] ? c.condition : '';
+  const price = typeof c.price === 'number' && c.price > 0 ? c.price : 0;
+  const set = [c.setName, c.number].filter(Boolean).join(' · ');
+  return `<article class="pcard" aria-label="${esc(c.name)}">
+    <div class="pcard__img pcard__img--carta"><button type="button" class="vit__zoom" data-zoom="${esc(hiresOf(c.image))}" data-alt="${esc(c.name)}" aria-label="Ampliar ${esc(c.name)}"><img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy" onerror="this.onerror=null;this.src='${logo}'"></button>${cond ? `<span class="tag tag--cond">${esc(cond)}</span>` : ''}<span class="tag tag--low">Troca</span></div>
+    <div class="pcard__body">
+      <p class="pcard__set">${esc(set || 'Carta avulsa')}</p>
+      <h3 class="pcard__name">${esc(c.name)}</h3>
+      <p class="vit__nota">Anunciada por ${esc(o.mine ? 'você' : o.ownerName || 'Treinador')}${c.note ? ' · ' + esc(c.note) : ''}</p>
+      ${price ? `<p class="price">${brl(price)}</p>` : '<p class="vit__nota">Valor a combinar</p>'}
+      ${o.mine ? '<span class="vit__nota">Seu anúncio</span>' : `<button type="button" class="btn-buy" data-vit-chat="${esc(o.id)}">Tenho interesse</button>`}
+      ${isAdmin() ? `<button type="button" data-vit-off="${esc(o.id)}" class="mt-1 text-xs underline text-red-600">Remover da vitrine</button>` : ''}
+    </div></article>`;
+}
+async function setFeatured(id, featured) {
+  try {
+    await apiTrocas('PATCH', { q: '?id=' + encodeURIComponent(id), body: { featured } });
+    const m = market.find(o => o.id === id); if (m) m.featured = featured;
+    toast(featured ? 'Carta adicionada à vitrine da página inicial.' : 'Carta removida da vitrine.');
+  } catch (err) { toast(err.message); }
+  await loadVitrineOffers();
+  if (tab === 'trades') renderTrades(); else if (tab === 'mine') renderMine();
+}
+const featureBtn = o => !isAdmin() ? '' : o.featured
+  ? `<button data-feature="${o.id}" data-on="0" class="${btnCls} border border-amber-400 text-amber-600 dark:text-amber-400" title="Tirar da vitrine da página inicial">★ Na vitrine</button>`
+  : `<button data-feature="${o.id}" data-on="1" class="${btnCls} border border-slate-300 dark:border-slate-700" title="Mostrar na vitrine da página inicial">☆ Adicionar à vitrine</button>`;
 function openZoom(src, alt) {
   const o = document.createElement('div');
   o.className = 'fixed inset-0 z-50 bg-black/80 grid place-items-center p-4 cursor-zoom-out';
@@ -577,11 +617,11 @@ function homeHTML() {
     </div>
     <div class="hero__media hero__reel" id="hero-reel" aria-hidden="true"></div>
   </section>`;
-  const vitItems = VITRINE.map(vitCardHTML).filter(Boolean);
+  const vitItems = [...VITRINE.map(vitCardHTML), ...VIT_OFFERS.map(vitOfferHTML)].filter(Boolean);
   const vit = (!vitItems.length && !isAdmin()) ? '' : `<section id="store-vitrine" class="mb-8 scroll-mt-32">
     <h2 class="text-lg font-bold">Vitrine NORDEX</h2>
     <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Cartas e produtos em destaque, escolhidos pela loja.</p>
-    ${vitItems.length ? `<div class="pgrid">${vitItems.join('')}</div>` : `<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-sm text-center text-slate-500">A vitrine está vazia. <button type="button" data-open-admin class="underline font-semibold text-[#0050e6] dark:text-[#6e9bff]">Adicionar itens</button></div>`}
+    ${vitItems.length ? `<div class="pgrid">${vitItems.join('')}</div>` : `<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-sm text-center text-slate-500">A vitrine está vazia. <button type="button" data-open-admin class="underline font-semibold text-[#0050e6] dark:text-[#6e9bff]">Adicionar itens</button> ou use "Adicionar à vitrine" nas cartas das abas Trocas e Minhas Cartas.</div>`}
   </section>`;
   const promo = PRODUCTS.filter(p => p.antes);
   const prom = promo.length ? `<section class="mb-8"><h2 class="text-lg font-bold mb-3">Promoções</h2>
@@ -644,6 +684,11 @@ $('#store').addEventListener('click', e => {
   const t = e.target.closest('button');
   if (!t) { const pa = e.target.closest('[data-prod]'); if (pa) openProduct(pa.dataset.prod); return; }
   if (t.dataset.zoom) return openZoom(t.dataset.zoom, t.dataset.alt || '');
+  if (t.dataset.vitChat) {
+    if (!user) return toast('Entre com sua conta para conversar com quem anunciou a carta.');
+    return window.M44Chat?.open(t.dataset.vitChat);
+  }
+  if (t.dataset.vitOff) { t.disabled = true; return setFeatured(t.dataset.vitOff, false); }
   if (t.dataset.dot) return showSlide(+t.dataset.dot);
   if (t.dataset.nav) return showSlide(heroIdx + (t.dataset.nav === 'next' ? 1 : -1));
   if (t.dataset.go) {
@@ -984,7 +1029,7 @@ const fromServer = o => {
   if (o.giveCard?.id) tcgCardCache[o.giveCard.id] ||= o.giveCard;
   if (o.wantCard?.id) tcgCardCache[o.wantCard.id] ||= o.wantCard;
   return { id: o.id, owner: o.mine && user ? user.email : 'outro:' + o.id, ownerName: o.ownerName, give: o.give, want: o.want || null,
-    price: typeof o.giveCard?.price === 'number' ? o.giveCard.price : null, condition: o.giveCard?.condition || '', note: o.giveCard?.note || '' };
+    price: typeof o.giveCard?.price === 'number' ? o.giveCard.price : null, condition: o.giveCard?.condition || '', note: o.giveCard?.note || '', featured: !!o.featured };
 };
 async function loadMarket() {
   try {
@@ -1445,6 +1490,7 @@ function renderTrades() {
       act = why ? `<span class="text-xs text-slate-500">${esc(why)}</span>` : `<button data-accept="${o.id}" class="${btnCls} bg-[#004de9] text-white">Aceitar troca</button>`;
     }
     if (!mine) act += ` <button data-chat-offer="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700 ml-1">💬 Conversar</button>`;
+    if (isAdmin()) act += ` <span class="inline-block ml-1">${featureBtn(o)}</span>`;
     return `<div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
       <span class="w-20 text-sm font-semibold truncate">${esc(mine ? 'Você' : o.ownerName)}</span>${chip(g)}${single ? '<div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">Quer trocar esta carta</p>${detailsLine(o)}<p class="text-xs text-slate-500 mt-1">Entre em contato com o anunciante para combinar a troca.</p></div>' : `<span class="text-xl text-slate-400">⇄</span>${chip(w)}${balance(o, mine)}`}<div class="ml-auto text-right">${act}</div></div>`;
   };
@@ -1498,7 +1544,7 @@ function renderMine() {
         <div class="min-w-[150px] flex-1"><p class="font-semibold text-sm">${esc(g.name)}</p><p class="text-xs text-slate-500">${esc(g.number || '')}${g.setName ? ' · ' + esc(g.setName) : ''}</p>${detailsLine(o)}</div>
         <div class="ml-auto flex gap-2">${editing
           ? `<button data-edit-cancel class="${btnCls} border border-slate-300 dark:border-slate-700">Cancelar</button>`
-          : `<button data-edit="${o.id}" class="${btnCls} bg-[#004de9] text-white">Editar</button><button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover</button>`}</div>
+          : `${featureBtn(o)}<button data-edit="${o.id}" class="${btnCls} bg-[#004de9] text-white">Editar</button><button data-cancel="${o.id}" class="${btnCls} border border-slate-300 dark:border-slate-700">Remover</button>`}</div>
       </div>
       ${editing ? `<div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
         <div class="grid gap-3 sm:grid-cols-3">
@@ -1608,16 +1654,18 @@ async function onTradeClick(e) {
       const { offer } = await apiTrocas('PUT', { q: '?id=' + encodeURIComponent(id), body });
       const i = market.findIndex(o => o.id === id); if (i >= 0) market[i] = fromServer(offer);
       editingId = null; pick.edit = null; toast('Anúncio atualizado.');
+      if (VIT_OFFERS.some(o => o.id === id)) loadVitrineOffers();
     } catch (err) { toast(err.message); }
     refresh(); loadMarket();
   }
+  else if (t.dataset.feature) { t.disabled = true; await setFeatured(t.dataset.feature, t.dataset.on === '1'); }
   else if (t.dataset.chatOffer) { if (window.M44Chat) window.M44Chat.open(t.dataset.chatOffer); }
   else if (t.dataset.accept) accept(t.dataset.accept);
   else if (t.dataset.cancel) {
     t.disabled = true;
     try { await apiTrocas('DELETE', { q: '?id=' + encodeURIComponent(t.dataset.cancel) }); market = market.filter(o => o.id !== t.dataset.cancel); if (editingId === t.dataset.cancel) editingId = null; toast('Anúncio removido.'); }
     catch (err) { toast(err.message); }
-    refresh(); loadMarket();
+    refresh(); loadMarket(); if (VIT_OFFERS.some(o => o.id === t.dataset.cancel)) loadVitrineOffers();
   }
   else if (t.id === 'btn-pub' && pick.give) {
     if (lockedIds().has(pick.give)) { toast('Essa carta já está anunciada.'); return; }
@@ -1691,3 +1739,4 @@ preloadAllTcgCards();
 loadSets();
 render();
 loadStoreConfig();
+loadVitrineOffers();
