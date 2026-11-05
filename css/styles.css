@@ -331,3 +331,13 @@ main{padding-top:28px!important}
   #toast{bottom:96px}
 }
 #toast{border-radius:14px;background:rgba(31,21,17,.9);backdrop-filter:blur(10px);border:1px solid rgba(250,185,65,.2)}
+
+/* ilustração (esboço a lápis) no fundo: traços viram dourado no escuro e terracota no claro */
+.bg-art{right:max(-4vw,calc(50% - 760px));top:50%;height:min(118vh,1100px);aspect-ratio:386/518;transform:translateY(-46%) rotate(-4deg);
+  background:url("../assets/bg/sketch.jpg") center/contain no-repeat;
+  filter:invert(1) sepia(1) saturate(4) hue-rotate(-12deg) brightness(.95);mix-blend-mode:screen;opacity:.3;
+  -webkit-mask-image:radial-gradient(75% 70% at 50% 45%,#000 45%,transparent 100%);mask-image:radial-gradient(75% 70% at 50% 45%,#000 45%,transparent 100%);
+  animation:art-float 18s ease-in-out infinite alternate}
+:root:not(.dark) .bg-art{filter:sepia(1) saturate(2.5) hue-rotate(-18deg) contrast(1.2);mix-blend-mode:multiply;opacity:.22}
+@keyframes art-float{to{transform:translateY(-50%) rotate(-1deg)}}
+@media(max-width:860px){.bg-art{right:-28vw;height:90vh;opacity:.18}:root:not(.dark) .bg-art{opacity:.14}}
