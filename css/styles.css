@@ -349,3 +349,17 @@ main{padding-top:28px!important}
   .mnav .tab svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
   .site-actions{gap:6px}
 }
+
+/* Vitrine em scroll rolante (marquee contínuo) */
+.vmarq{position:relative;overflow:hidden;padding:4px 0 8px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+.vmarq__track{display:flex;width:max-content;animation:vmarq var(--vm-dur,40s) linear infinite}
+.vmarq:hover .vmarq__track,.vmarq:focus-within .vmarq__track,.vmarq:active .vmarq__track{animation-play-state:paused}
+.vmarq__set{display:flex;gap:20px;padding-right:20px}
+.vmarq__set>.pcard{flex:0 0 240px;width:240px}
+@media(max-width:720px){.vmarq__set>.pcard{flex-basis:200px;width:200px}}
+@keyframes vmarq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){
+  .vmarq{overflow-x:auto;-webkit-mask-image:none;mask-image:none}
+  .vmarq__track{animation:none}
+  .vmarq__set[aria-hidden]{display:none}
+}

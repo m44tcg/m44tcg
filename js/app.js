@@ -602,6 +602,12 @@ function placeReel() {
     el.classList.toggle('is-out', a > 2);
   });
 }
+/* Vitrine em scroll rolante: a faixa é repetida para o giro contínuo não ter emendas (pausa ao passar o mouse/tocar) */
+function vitMarquee(items) {
+  const reps = Math.max(1, Math.ceil(8 / items.length)), half = Array.from({ length: reps }, () => items.join('')).join('');
+  const n = items.length * reps;
+  return `<div class="vmarq" style="--vm-dur:${Math.max(20, n * 5)}s"><div class="vmarq__track"><div class="vmarq__set">${half}</div><div class="vmarq__set" aria-hidden="true">${half}</div></div></div>`;
+}
 function homeHTML() {
   const card = 'rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800';
   const hero = `<section class="hero" aria-labelledby="hero-title">
@@ -621,7 +627,7 @@ function homeHTML() {
   const vit = (!vitItems.length && !isAdmin()) ? '' : `<section id="store-vitrine" class="mb-8 scroll-mt-32">
     <h2 class="text-lg font-bold">Vitrine NORDEX</h2>
     <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Cartas e produtos em destaque, escolhidos pela loja.</p>
-    ${vitItems.length ? `<div class="pgrid">${vitItems.join('')}</div>` : `<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-sm text-center text-slate-500">A vitrine está vazia. <button type="button" data-open-admin class="underline font-semibold text-[#0050e6] dark:text-[#6e9bff]">Adicionar itens</button> ou use "Adicionar à vitrine" nas cartas das abas Trocas e Minhas Cartas.</div>`}
+    ${vitItems.length ? vitMarquee(vitItems) : `<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-sm text-center text-slate-500">A vitrine está vazia. <button type="button" data-open-admin class="underline font-semibold text-[#0050e6] dark:text-[#6e9bff]">Adicionar itens</button> ou use "Adicionar à vitrine" nas cartas das abas Trocas e Minhas Cartas.</div>`}
   </section>`;
   const promo = PRODUCTS.filter(p => p.antes);
   const prom = promo.length ? `<section class="mb-8"><h2 class="text-lg font-bold mb-3">Promoções</h2>
